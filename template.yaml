@@ -55,12 +55,27 @@ Resources:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
-        AllowCredentials: true
+        MaxAge: "'600'"
       Auth:
         DefaultAuthorizer: CognitoAuthorizer
         Authorizers:
           CognitoAuthorizer:
             UserPoolArn: !GetAtt UserPool.Arn
+      MethodSettings:
+        - ResourcePath: /auth/*
+          HttpMethod: POST
+          ThrottlingBurstLimit: 10
+          ThrottlingRateLimit: 5
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 25
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
 
   # Cognito User Pool
   UserPool:
@@ -114,6 +129,13 @@ Resources:
         RefreshToken: days
         AccessToken: hours
         IdToken: hours
+
+  CognitoAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: admin
+      UserPoolId: !Ref UserPool
+      Description: Admin users with product and order management access
 
   # DynamoDB Tables
   UsersTable:

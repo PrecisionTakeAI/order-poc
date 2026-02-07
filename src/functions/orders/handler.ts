@@ -15,6 +15,28 @@ import {
 
 const ordersService = new OrdersService();
 
+/**
+ * Check if user has admin privileges
+ * @param event - API Gateway event
+ * @returns true if user is an admin, false otherwise
+ */
+function isAdmin(event: AuthorizedAPIGatewayProxyEvent): boolean {
+  const groups = event.requestContext.authorizer?.claims?.['cognito:groups'];
+  if (!groups) return false;
+
+  // Groups can be a string like "[admin]" or "admin" depending on Cognito config
+  // Handle both string and array formats
+  if (typeof groups === 'string') {
+    return groups.includes('admin');
+  }
+
+  if (Array.isArray(groups)) {
+    return groups.includes('admin');
+  }
+
+  return false;
+}
+
 export const handler = async (
   event: AuthorizedAPIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -170,6 +192,39 @@ async function handleUpdateOrderStatus(
 
   if (!validStatuses.includes(status)) {
     throw new ValidationError('Invalid status value');
+  }
+
+  // Get existing order to validate ownership
+  const existingOrder = await ordersService.getOrderById(userId, orderId);
+  if (!existingOrder) {
+    return errorResponse('Order not found', 404, 'NOT_FOUND');
+  }
+
+  const admin = isAdmin(event);
+
+  // Non-admin users: can only cancel their own pending orders
+  if (!admin) {
+    if (existingOrder.userId !== userId) {
+      return errorResponse(
+        'Forbidden: Cannot update other users\' orders',
+        403,
+        'FORBIDDEN'
+      );
+    }
+    if (status !== 'cancelled') {
+      return errorResponse(
+        'Customers can only cancel orders',
+        403,
+        'FORBIDDEN'
+      );
+    }
+    if (existingOrder.status !== 'pending') {
+      return errorResponse(
+        'Can only cancel pending orders',
+        400,
+        'INVALID_STATUS_TRANSITION'
+      );
+    }
   }
 
   const order = await ordersService.updateOrderStatus(userId, orderId, status);

@@ -13,6 +13,28 @@ import {
 
 const productsService = new ProductsService();
 
+/**
+ * Check if user has admin privileges
+ * @param event - API Gateway event
+ * @returns true if user is an admin, false otherwise
+ */
+function isAdmin(event: APIGatewayProxyEvent): boolean {
+  const groups = event.requestContext.authorizer?.claims?.['cognito:groups'];
+  if (!groups) return false;
+
+  // Groups can be a string like "[admin]" or "admin" depending on Cognito config
+  // Handle both string and array formats
+  if (typeof groups === 'string') {
+    return groups.includes('admin');
+  }
+
+  if (Array.isArray(groups)) {
+    return groups.includes('admin');
+  }
+
+  return false;
+}
+
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -47,7 +69,7 @@ export const handler = async (
       }
 
       if (method === 'DELETE') {
-        return await handleDeleteProduct(productId);
+        return await handleDeleteProduct(productId, event);
       }
     }
 
@@ -102,6 +124,11 @@ async function handleGetProduct(
 async function handleCreateProduct(
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
+  // Check admin authorization
+  if (!isAdmin(event)) {
+    return errorResponse('Forbidden: Admin access required', 403, 'FORBIDDEN');
+  }
+
   const body = JSON.parse(event.body || '{}') as CreateProductRequest;
 
   validateRequestBody(body, [
@@ -136,6 +163,11 @@ async function handleUpdateProduct(
   productId: string,
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
+  // Check admin authorization
+  if (!isAdmin(event)) {
+    return errorResponse('Forbidden: Admin access required', 403, 'FORBIDDEN');
+  }
+
   const body = JSON.parse(event.body || '{}') as UpdateProductRequest;
 
   const product = await productsService.getProductById(productId);
@@ -160,8 +192,14 @@ async function handleUpdateProduct(
 }
 
 async function handleDeleteProduct(
-  productId: string
+  productId: string,
+  event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
+  // Check admin authorization
+  if (!isAdmin(event)) {
+    return errorResponse('Forbidden: Admin access required', 403, 'FORBIDDEN');
+  }
+
   const product = await productsService.getProductById(productId);
   if (!product) {
     throw new NotFoundError('Product not found');
