@@ -87,7 +87,11 @@ class ProductService {
       const { category, minPrice, maxPrice, brand, inStock, search } = params.filters;
 
       if (category) {
-        searchParams.append('category', category);
+        if (Array.isArray(category)) {
+          category.forEach((cat) => searchParams.append('category', cat));
+        } else {
+          searchParams.append('category', category);
+        }
       }
 
       if (minPrice !== undefined) {
@@ -99,7 +103,11 @@ class ProductService {
       }
 
       if (brand) {
-        searchParams.append('brand', brand);
+        if (Array.isArray(brand)) {
+          brand.forEach((b) => searchParams.append('brand', b));
+        } else {
+          searchParams.append('brand', brand);
+        }
       }
 
       if (inStock !== undefined) {
