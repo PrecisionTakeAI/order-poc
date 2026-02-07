@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import axiosRetry from 'axios-retry';
 import { storage } from '../utils/storage';
 import type { ApiError } from '../types/api.types';
 
@@ -16,9 +17,32 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
       },
+      timeout: 30000, // 30 seconds
     });
 
+    this.setupRetry();
     this.setupInterceptors();
+  }
+
+  private setupRetry(): void {
+    axiosRetry(this.api, {
+      retries: 3,
+      retryDelay: axiosRetry.exponentialDelay,
+      retryCondition: (error) => {
+        // Retry on network errors
+        if (axiosRetry.isNetworkError(error)) {
+          return true;
+        }
+
+        // Retry on 5xx server errors, but only for idempotent requests (GET)
+        if (error.response?.status && error.response.status >= 500) {
+          const method = error.config?.method?.toUpperCase();
+          return method === 'GET';
+        }
+
+        return false;
+      },
+    });
   }
 
   private setupInterceptors(): void {
@@ -39,6 +63,19 @@ class ApiService {
       (response) => response,
       async (error: AxiosError<ApiError>) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+        // Dispatch api-error event for 5xx server errors
+        if (error.response?.status && error.response.status >= 500) {
+          const apiError = error.response.data as ApiError;
+          window.dispatchEvent(
+            new CustomEvent('api-error', {
+              detail: {
+                message: apiError?.message || 'Server error occurred. Please try again.',
+                statusCode: error.response.status,
+              },
+            })
+          );
+        }
 
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
@@ -94,6 +131,10 @@ class ApiService {
   }
 
   public getInstance(): AxiosInstance {
+    return this.api;
+  }
+
+  public getAxiosInstance(): AxiosInstance {
     return this.api;
   }
 
