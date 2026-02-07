@@ -1,15 +1,19 @@
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
 
 # Build outputs
 .aws-sam/
 dist/
 build/
-*.js
 *.js.map
 *.d.ts
+
+# Ignore compiled JS files but keep config files
+src/**/*.js
+!jest.config.js
+!src/jest.config.js
+!src/.eslintrc.js
 
 # Environment variables
 .env

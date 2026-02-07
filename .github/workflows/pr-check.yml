@@ -1,0 +1,44 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install src dependencies
+        run: npm ci
+        working-directory: ./src
+
+      - name: Lint
+        run: npm run lint
+        working-directory: ./src
+
+      - name: Test
+        run: npm test
+        working-directory: ./src
+
+      - uses: aws-actions/setup-sam@d78e1a4a9656d3b223e59b80676a797f20093133 # v2
+        with:
+          use-installer: true
+
+      - name: SAM Build
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          sam build

@@ -4,7 +4,6 @@ import {
   InitiateAuthCommand,
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
-  GetUserCommand,
   AdminGetUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
