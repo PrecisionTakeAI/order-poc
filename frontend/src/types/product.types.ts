@@ -1,4 +1,25 @@
-export type ProductCategory = 'bats' | 'balls' | 'protective_gear' | 'accessories';
+export type ProductCategory =
+  | 'bats'
+  | 'pads'
+  | 'gloves'
+  | 'helmets'
+  | 'balls'
+  | 'shoes'
+  | 'bags'
+  | 'protection'
+  | 'accessories';
+
+export const PRODUCT_CATEGORIES: Array<{ value: ProductCategory; label: string }> = [
+  { value: 'bats', label: 'Bats' },
+  { value: 'pads', label: 'Pads' },
+  { value: 'gloves', label: 'Gloves' },
+  { value: 'helmets', label: 'Helmets' },
+  { value: 'balls', label: 'Balls' },
+  { value: 'shoes', label: 'Shoes' },
+  { value: 'bags', label: 'Bags' },
+  { value: 'protection', label: 'Protective Gear' },
+  { value: 'accessories', label: 'Accessories' },
+];
 
 export interface Product {
   productId: string;
@@ -16,10 +37,10 @@ export interface Product {
 }
 
 export interface ProductFilters {
-  category?: ProductCategory;
+  category?: ProductCategory | ProductCategory[];
   minPrice?: number;
   maxPrice?: number;
-  brand?: string;
+  brand?: string | string[];
   inStock?: boolean;
   search?: string;
 }
