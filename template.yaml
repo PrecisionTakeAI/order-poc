@@ -254,6 +254,202 @@ Resources:
         - Key: Application
           Value: OrderPOC
 
+  # S3 Buckets
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub orderpoc-frontend-${Environment}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: OrderPOC
+
+  ProductImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub orderpoc-productimages-${Environment}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods:
+              - GET
+              - PUT
+              - POST
+            AllowedOrigins:
+              - '*'
+            AllowedHeaders:
+              - '*'
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: MoveToGlacier
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 365
+                StorageClass: GLACIER_IR
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: OrderPOC
+
+  # CloudFront Origin Access Control
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub OrderPOC-OAC-${Environment}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # CloudFront Distribution for Frontend
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            Id: S3-Frontend
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+        DefaultCacheBehavior:
+          TargetOriginId: S3-Frontend
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: true
+            Cookies:
+              Forward: none
+          Compress: true
+          DefaultTTL: 86400
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        Comment: !Sub OrderPOC Frontend - ${Environment}
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: OrderPOC
+
+  # CloudFront Distribution for Product Images
+  ProductImagesDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Origins:
+          - DomainName: !GetAtt ProductImagesBucket.RegionalDomainName
+            Id: S3-ProductImages
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+        DefaultCacheBehavior:
+          TargetOriginId: S3-ProductImages
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          Compress: true
+          DefaultTTL: 604800
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        Comment: !Sub OrderPOC Product Images - ${Environment}
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: OrderPOC
+
+  # S3 Bucket Policies
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontOAC
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
+
+  ProductImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ProductImagesBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontOAC
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${ProductImagesBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${ProductImagesDistribution}
+
   # Lambda Functions
   AuthFunction:
     Type: AWS::Serverless::Function
@@ -343,9 +539,13 @@ Resources:
         Variables:
           PRODUCTS_TABLE: !Ref ProductsTable
           PRODUCTS_CATEGORY_INDEX: category-price-index
+          PRODUCT_IMAGES_BUCKET: !Ref ProductImagesBucket
+          PRODUCT_IMAGES_CDN: !Sub https://${ProductImagesDistribution.DomainName}
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProductsTable
+        - S3CrudPolicy:
+            BucketName: !Ref ProductImagesBucket
       Events:
         ListProducts:
           Type: Api
@@ -560,3 +760,39 @@ Outputs:
     Value: !Ref OrdersTable
     Export:
       Name: !Sub ${AWS::StackName}-OrdersTable
+
+  FrontendBucketName:
+    Description: S3 Bucket Name for Frontend Hosting
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-FrontendBucket
+
+  ProductImagesBucketName:
+    Description: S3 Bucket Name for Product Images
+    Value: !Ref ProductImagesBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductImagesBucket
+
+  FrontendDistributionId:
+    Description: CloudFront Distribution ID for Frontend
+    Value: !Ref FrontendDistribution
+    Export:
+      Name: !Sub ${AWS::StackName}-FrontendDistributionId
+
+  FrontendDistributionDomainName:
+    Description: CloudFront Distribution Domain Name for Frontend
+    Value: !Sub https://${FrontendDistribution.DomainName}
+    Export:
+      Name: !Sub ${AWS::StackName}-FrontendDistributionDomain
+
+  ProductImagesDistributionId:
+    Description: CloudFront Distribution ID for Product Images
+    Value: !Ref ProductImagesDistribution
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductImagesDistributionId
+
+  ProductImagesDistributionDomainName:
+    Description: CloudFront Distribution Domain Name for Product Images
+    Value: !Sub https://${ProductImagesDistribution.DomainName}
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductImagesDistributionDomain
