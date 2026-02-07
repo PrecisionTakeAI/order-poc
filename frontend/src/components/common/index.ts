@@ -32,6 +32,7 @@ export { Pagination } from './Pagination';
 
 // Domain-Specific Components
 export { ProductCard } from './ProductCard';
+export { ProductCardSkeleton } from './ProductCardSkeleton';
 export { OrderCard } from './OrderCard';
 
 // Route Components
