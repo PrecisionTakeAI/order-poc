@@ -676,9 +676,13 @@ Resources:
       Environment:
         Variables:
           CARTS_TABLE: !Ref CartsTable
+          PRODUCTS_TABLE: !Ref ProductsTable
+          PRODUCTS_CATEGORY_INDEX: category-price-index
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CartsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ProductsTable
       Events:
         GetCart:
           Type: Api
@@ -686,23 +690,23 @@ Resources:
             RestApiId: !Ref OrderApi
             Path: /cart
             Method: GET
-        AddItem:
+        AddToCart:
           Type: Api
           Properties:
             RestApiId: !Ref OrderApi
-            Path: /cart/items
+            Path: /cart
             Method: POST
-        UpdateItem:
+        UpdateCartItem:
           Type: Api
           Properties:
             RestApiId: !Ref OrderApi
-            Path: /cart/items/{itemId}
+            Path: /cart/{productId}
             Method: PUT
-        RemoveItem:
+        RemoveCartItem:
           Type: Api
           Properties:
             RestApiId: !Ref OrderApi
-            Path: /cart/items/{itemId}
+            Path: /cart/{productId}
             Method: DELETE
         ClearCart:
           Type: Api

@@ -1,12 +1,18 @@
 export interface AddItemRequest {
   productId: string;
-  productName: string;
-  price: number;
   quantity: number;
 }
 
 export interface UpdateItemRequest {
   quantity: number;
+}
+
+export interface CurrentProductInfo {
+  name: string;
+  price: number;
+  stock: number;
+  status: string;
+  imageUrl?: string;
 }
 
 export interface CartItemResponse {
@@ -16,6 +22,7 @@ export interface CartItemResponse {
   price: number;
   quantity: number;
   subtotal: number;
+  currentProduct?: CurrentProductInfo | null;
 }
 
 export interface CartResponse {
@@ -23,5 +30,6 @@ export interface CartResponse {
   items: CartItemResponse[];
   totalAmount: number;
   currency: string;
+  itemCount: number;
   updatedAt: string;
 }
