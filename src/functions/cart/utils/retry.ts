@@ -11,9 +11,19 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Saves cart with retry logic for handling optimistic locking conflicts
- * @param cart - The cart entity to save
+ * Callback that re-applies the intended cart operation on top of the latest cart state.
+ * Called on each retry to avoid overwriting concurrent changes.
+ */
+export type BuildCartFn = (latestCart: CartEntity | null) => Promise<CartEntity>;
+
+/**
+ * Saves cart with retry logic for handling optimistic locking conflicts.
+ * On conflict, refetches the latest cart and re-applies the operation via buildCart
+ * to preserve concurrent changes from other requests.
+ *
+ * @param cart - The cart entity from the first attempt
  * @param cartService - Instance of CartService
+ * @param buildCart - Callback to re-build the cart from latest state on retry
  * @param maxRetries - Maximum number of retry attempts (default: 3)
  * @returns The saved CartEntity
  * @throws ConflictError if max retries exceeded
@@ -21,6 +31,7 @@ function sleep(ms: number): Promise<void> {
 export async function saveCartWithRetry(
   cart: CartEntity,
   cartService: CartService,
+  buildCart?: BuildCartFn,
   maxRetries: number = 3
 ): Promise<CartEntity> {
   let attempt = 0;
@@ -34,7 +45,7 @@ export async function saveCartWithRetry(
         attempt++;
         console.warn(`Cart save conflict (attempt ${attempt}/${maxRetries})`, {
           userId: cart.userId,
-          version: cart.version,
+          version: currentCart.version,
         });
 
         if (attempt >= maxRetries) {
@@ -47,14 +58,16 @@ export async function saveCartWithRetry(
         // Exponential backoff: 100ms, 200ms, 400ms
         await sleep(100 * Math.pow(2, attempt - 1));
 
-        // Refetch latest cart to get new version
+        // Refetch latest cart and re-apply the operation
         const latestCart = await cartService.getCart(cart.userId);
-        if (latestCart) {
-          // Use the latest version for next retry
-          currentCart = { ...currentCart, version: latestCart.version };
+        if (buildCart) {
+          currentCart = await buildCart(latestCart);
         } else {
-          // Cart was deleted, start fresh with version 0
-          currentCart = { ...currentCart, version: 0 };
+          // Fallback: just update the version (legacy behavior)
+          currentCart = {
+            ...currentCart,
+            version: latestCart?.version || 0,
+          };
         }
 
         continue;

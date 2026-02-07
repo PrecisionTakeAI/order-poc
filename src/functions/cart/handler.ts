@@ -109,14 +109,24 @@ async function handleAddItem(
 
   const { productId, quantity } = body;
 
-  // Validate product exists, is active, and has sufficient stock
-  const product = await validateProduct(productId, quantity, productsService);
+  // Check existing cart quantity for accurate stock validation
+  const existingCart = await cartService.getCart(userId);
+  const existingItem = existingCart?.items.find((item) => item.productId === productId);
+  const existingQuantity = existingItem?.quantity || 0;
+
+  // Validate product exists, is active, and has sufficient stock (including existing cart quantity)
+  const product = await validateProduct(productId, quantity, productsService, existingQuantity);
 
   // Add item to cart (does not save yet)
   const cart = await cartService.addItem(userId, product, quantity);
 
-  // Save cart with retry logic for optimistic locking
-  const savedCart = await saveCartWithRetry(cart, cartService);
+  // Save cart with retry logic — re-apply operation on conflict
+  const savedCart = await saveCartWithRetry(cart, cartService, async (latestCart) => {
+    const latestItem = latestCart?.items.find((item) => item.productId === productId);
+    const latestExistingQty = latestItem?.quantity || 0;
+    await validateProduct(productId, quantity, productsService, latestExistingQty);
+    return cartService.addItem(userId, product, quantity);
+  });
 
   const response: CartResponse = mapCartToResponse(savedCart);
 
@@ -136,7 +146,7 @@ async function handleUpdateItem(
 
   const { quantity } = body;
 
-  // If quantity > 0, validate product and stock
+  // If quantity > 0, validate product and stock (quantity is the new absolute value, no existing offset)
   if (quantity > 0) {
     await validateProduct(productId, quantity, productsService);
   }
@@ -144,8 +154,16 @@ async function handleUpdateItem(
   // Update item (or remove if quantity is 0)
   const cart = await cartService.updateItem(userId, productId, quantity);
 
-  // Save cart with retry logic for optimistic locking
-  const savedCart = await saveCartWithRetry(cart, cartService);
+  // Save cart with retry logic — re-apply operation on conflict
+  const savedCart = await saveCartWithRetry(cart, cartService, async (latestCart) => {
+    if (!latestCart) {
+      throw new NotFoundError('Cart not found');
+    }
+    if (quantity > 0) {
+      await validateProduct(productId, quantity, productsService);
+    }
+    return cartService.updateItem(userId, productId, quantity);
+  });
 
   const response: CartResponse = mapCartToResponse(savedCart);
 
@@ -158,8 +176,13 @@ async function handleRemoveItem(
 ): Promise<APIGatewayProxyResult> {
   const cart = await cartService.removeItem(userId, productId);
 
-  // Save cart with retry logic for optimistic locking
-  const savedCart = await saveCartWithRetry(cart, cartService);
+  // Save cart with retry logic — re-apply operation on conflict
+  const savedCart = await saveCartWithRetry(cart, cartService, async (latestCart) => {
+    if (!latestCart) {
+      throw new NotFoundError('Cart not found');
+    }
+    return cartService.removeItem(userId, productId);
+  });
 
   const response: CartResponse = mapCartToResponse(savedCart);
 
