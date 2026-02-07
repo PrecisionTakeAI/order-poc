@@ -1,0 +1,30 @@
+{
+  "name": "order-poc",
+  "version": "1.0.0",
+  "description": "AWS SAM-based order management system POC",
+  "main": "index.js",
+  "scripts": {
+    "build": "sam build",
+    "deploy": "sam deploy",
+    "validate": "sam validate --lint",
+    "local:auth": "sam local invoke AuthFunction --event events/auth-register.json",
+    "local:products": "sam local invoke ProductsFunction --event events/product-get.json",
+    "local:cart": "sam local invoke CartFunction --event events/cart-add-item.json",
+    "local:orders": "sam local invoke OrdersFunction --event events/order-create.json",
+    "local:api": "sam local start-api"
+  },
+  "keywords": [
+    "aws",
+    "sam",
+    "lambda",
+    "api-gateway",
+    "serverless"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.14.9",
+    "typescript": "^5.5.3"
+  }
+}

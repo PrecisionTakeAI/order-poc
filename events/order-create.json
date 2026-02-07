@@ -1,0 +1,17 @@
+{
+  "httpMethod": "POST",
+  "path": "/orders",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"items\":[{\"productId\":\"abc123\",\"productName\":\"Sample Product\",\"price\":29.99,\"quantity\":2}],\"shippingAddress\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"state\":\"NY\",\"postalCode\":\"10001\",\"country\":\"USA\"},\"paymentMethod\":\"credit_card\"}",
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "user-123",
+        "email": "test@example.com",
+        "cognito:username": "test@example.com"
+      }
+    }
+  }
+}

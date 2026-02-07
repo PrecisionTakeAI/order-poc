@@ -1,0 +1,17 @@
+{
+  "httpMethod": "POST",
+  "path": "/cart/items",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"productId\":\"abc123\",\"productName\":\"Sample Product\",\"price\":29.99,\"quantity\":2}",
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "user-123",
+        "email": "test@example.com",
+        "cognito:username": "test@example.com"
+      }
+    }
+  }
+}

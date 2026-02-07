@@ -1,0 +1,536 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Order POC - Serverless Order Management System
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+
+  UsersTableName:
+    Type: String
+    Default: OrderPOC-Users
+    Description: DynamoDB table name for users
+
+  ProductsTableName:
+    Type: String
+    Default: OrderPOC-Products
+    Description: DynamoDB table name for products
+
+  CartsTableName:
+    Type: String
+    Default: OrderPOC-Carts
+    Description: DynamoDB table name for carts
+
+  OrdersTableName:
+    Type: String
+    Default: OrderPOC-Orders
+    Description: DynamoDB table name for orders
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 512
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        NODE_ENV: production
+
+Resources:
+  # API Gateway
+  OrderApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub OrderPOC-API-${Environment}
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+        MaxAge: "'600'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+      MethodSettings:
+        - ResourcePath: /auth/*
+          HttpMethod: POST
+          ThrottlingBurstLimit: 10
+          ThrottlingRateLimit: 5
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 25
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub OrderPOC-UserPool-${Environment}
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: false
+        - Name: name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: phone_number
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub OrderPOC-Client-${Environment}
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      PreventUserExistenceErrors: ENABLED
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      TokenValidityUnits:
+        RefreshToken: days
+        AccessToken: hours
+        IdToken: hours
+
+  CognitoAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: admin
+      UserPoolId: !Ref UserPool
+      Description: Admin users with product and order management access
+
+  # DynamoDB Tables
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${UsersTableName}-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: OrderPOC
+
+  ProductsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${ProductsTableName}-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: OrderPOC
+
+  CartsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${CartsTableName}-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: OrderPOC
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${OrdersTableName}-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: OrderPOC
+
+  # Lambda Functions
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub OrderPOC-Auth-${Environment}
+      CodeUri: src/functions/auth
+      Handler: handler.handler
+      Description: Authentication and user management
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+          USER_POOL_ID: !Ref UserPool
+          USER_POOL_CLIENT_ID: !Ref UserPoolClient
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminUpdateUserAttributes
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        Register:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /auth/register
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        Login:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /auth/login
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        ForgotPassword:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /auth/forgot-password
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        ResetPassword:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /auth/reset-password
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        RefreshToken:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /auth/refresh-token
+            Method: POST
+        GetProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /auth/profile
+            Method: GET
+      Metadata:
+        BuildMethod: esbuild
+        BuildProperties:
+          Minify: true
+          Target: es2020
+          EntryPoints:
+            - handler.ts
+          External:
+            - '@aws-sdk/*'
+
+  ProductsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub OrderPOC-Products-${Environment}
+      CodeUri: src/functions/products
+      Handler: handler.handler
+      Description: Product catalog management
+      Environment:
+        Variables:
+          PRODUCTS_TABLE: !Ref ProductsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProductsTable
+      Events:
+        ListProducts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /products
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        GetProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /products/{id}
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        CreateProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /products
+            Method: POST
+        UpdateProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /products/{id}
+            Method: PUT
+        DeleteProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /products/{id}
+            Method: DELETE
+      Metadata:
+        BuildMethod: esbuild
+        BuildProperties:
+          Minify: true
+          Target: es2020
+          EntryPoints:
+            - handler.ts
+          External:
+            - '@aws-sdk/*'
+
+  CartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub OrderPOC-Cart-${Environment}
+      CodeUri: src/functions/cart
+      Handler: handler.handler
+      Description: Shopping cart management
+      Environment:
+        Variables:
+          CARTS_TABLE: !Ref CartsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CartsTable
+      Events:
+        GetCart:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /cart
+            Method: GET
+        AddItem:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /cart/items
+            Method: POST
+        UpdateItem:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /cart/items/{itemId}
+            Method: PUT
+        RemoveItem:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /cart/items/{itemId}
+            Method: DELETE
+        ClearCart:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /cart
+            Method: DELETE
+      Metadata:
+        BuildMethod: esbuild
+        BuildProperties:
+          Minify: true
+          Target: es2020
+          EntryPoints:
+            - handler.ts
+          External:
+            - '@aws-sdk/*'
+
+  OrdersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub OrderPOC-Orders-${Environment}
+      CodeUri: src/functions/orders
+      Handler: handler.handler
+      Description: Order processing and management
+      Environment:
+        Variables:
+          ORDERS_TABLE: !Ref OrdersTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref OrdersTable
+      Events:
+        CreateOrder:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /orders
+            Method: POST
+        ListOrders:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /orders
+            Method: GET
+        GetOrder:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /orders/{id}
+            Method: GET
+        UpdateOrderStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /orders/{id}/status
+            Method: PUT
+      Metadata:
+        BuildMethod: esbuild
+        BuildProperties:
+          Minify: true
+          Target: es2020
+          EntryPoints:
+            - handler.ts
+          External:
+            - '@aws-sdk/*'
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${OrderApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiEndpoint
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub ${AWS::StackName}-UserPoolId
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub ${AWS::StackName}-UserPoolClientId
+
+  AuthFunctionArn:
+    Description: Auth Lambda Function ARN
+    Value: !GetAtt AuthFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-AuthFunctionArn
+
+  ProductsFunctionArn:
+    Description: Products Lambda Function ARN
+    Value: !GetAtt ProductsFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductsFunctionArn
+
+  CartFunctionArn:
+    Description: Cart Lambda Function ARN
+    Value: !GetAtt CartFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CartFunctionArn
+
+  OrdersFunctionArn:
+    Description: Orders Lambda Function ARN
+    Value: !GetAtt OrdersFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-OrdersFunctionArn
+
+  UsersTableName:
+    Description: DynamoDB Users Table Name
+    Value: !Ref UsersTable
+    Export:
+      Name: !Sub ${AWS::StackName}-UsersTable
+
+  ProductsTableName:
+    Description: DynamoDB Products Table Name
+    Value: !Ref ProductsTable
+    Export:
+      Name: !Sub ${AWS::StackName}-ProductsTable
+
+  CartsTableName:
+    Description: DynamoDB Carts Table Name
+    Value: !Ref CartsTable
+    Export:
+      Name: !Sub ${AWS::StackName}-CartsTable
+
+  OrdersTableName:
+    Description: DynamoDB Orders Table Name
+    Value: !Ref OrdersTable
+    Export:
+      Name: !Sub ${AWS::StackName}-OrdersTable
