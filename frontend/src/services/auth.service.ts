@@ -10,6 +10,7 @@ import type {
   ResetPasswordRequest,
   ResetPasswordResponse,
   LogoutResponse,
+  RefreshTokenResponse,
 } from '../types/auth.types';
 import type { ApiResponse } from '../types/api.types';
 
@@ -50,6 +51,23 @@ class AuthService {
       data
     );
     return response.data.data;
+  }
+
+  async refreshToken(): Promise<RefreshTokenResponse> {
+    const refreshToken = storage.getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await api.post<ApiResponse<RefreshTokenResponse>>(
+      '/auth/refresh-token',
+      { refreshToken }
+    );
+
+    const refreshData = response.data.data;
+    storage.setAccessToken(refreshData.accessToken);
+
+    return refreshData;
   }
 
   async logout(): Promise<LogoutResponse> {

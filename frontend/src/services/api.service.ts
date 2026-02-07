@@ -5,6 +5,8 @@ import type { ApiError } from '../types/api.types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
+let refreshPromise: Promise<string> | null = null;
+
 class ApiService {
   private api: AxiosInstance;
 
@@ -35,14 +37,60 @@ class ApiService {
 
     this.api.interceptors.response.use(
       (response) => response,
-      (error: AxiosError<ApiError>) => {
-        if (error.response?.status === 401) {
-          storage.clear();
-          window.location.href = '/login';
+      async (error: AxiosError<ApiError>) => {
+        const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+
+          try {
+            if (!refreshPromise) {
+              refreshPromise = this.refreshAccessToken();
+            }
+
+            const newAccessToken = await refreshPromise;
+            refreshPromise = null;
+
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            }
+
+            return this.api(originalRequest);
+          } catch (refreshError) {
+            refreshPromise = null;
+            storage.clear();
+            window.location.href = '/login';
+            return Promise.reject(refreshError);
+          }
         }
+
         return Promise.reject(error);
       }
     );
+  }
+
+  private async refreshAccessToken(): Promise<string> {
+    const refreshToken = storage.getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await axios.post(
+      `${API_BASE_URL}/auth/refresh-token`,
+      { refreshToken },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const { accessToken, expiresIn } = response.data.data;
+    storage.setAccessToken(accessToken);
+    const safeExpiresIn = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600;
+    storage.setTokenExpiry(Date.now() + safeExpiresIn * 1000);
+
+    return accessToken;
   }
 
   public getInstance(): AxiosInstance {
