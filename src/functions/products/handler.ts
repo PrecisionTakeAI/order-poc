@@ -3,15 +3,23 @@ import { v4 as uuidv4 } from 'uuid';
 import { successResponse, errorResponse } from '../../shared/utils/response.util';
 import { ValidationError, NotFoundError } from '../../shared/utils/error.util';
 import { validateRequestBody } from '../../shared/utils/validation.util';
+import { encodePaginationToken, parsePaginationParams } from '../../shared/utils/pagination.util';
+import { PRODUCT_CATEGORIES } from '../../shared/types/product-categories';
+import { ProductEntity } from '../../shared/types';
 import { ProductsService } from './services/products.service';
 import {
   CreateProductRequest,
   UpdateProductRequest,
   ProductResponse,
   ProductListResponse,
+  SearchProductsResponse,
+  CategoryProductsResponse,
+  SortBy,
 } from './types';
 
 const productsService = new ProductsService();
+
+const VALID_SORT_VALUES: SortBy[] = ['price-asc', 'price-desc', 'newest'];
 
 /**
  * Check if user has admin privileges
@@ -46,6 +54,19 @@ export const handler = async (
 
     if (method === 'OPTIONS') {
       return successResponse({}, 200);
+    }
+
+    // Search route - MUST match before /products/{id} to avoid conflict
+    const searchMatch = path.match(/^\/products\/search$/);
+    if (searchMatch && method === 'GET') {
+      return await handleSearchProducts(event);
+    }
+
+    // Category route - match /products/category/{category}
+    const categoryMatch = path.match(/^\/products\/category\/([^/]+)$/);
+    if (categoryMatch && method === 'GET') {
+      const category = decodeURIComponent(categoryMatch[1]);
+      return await handleGetProductsByCategory(category, event);
     }
 
     if (path === '/products' && method === 'GET') {
@@ -92,16 +113,120 @@ export const handler = async (
 async function handleListProducts(
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
-  const limit = event.queryStringParameters?.limit
-    ? parseInt(event.queryStringParameters.limit, 10)
-    : 50;
+  const { limit, lastKey } = parsePaginationParams(event.queryStringParameters);
 
-  const products = await productsService.listProducts(limit);
+  // Validate sortBy if provided
+  const sortByParam = event.queryStringParameters?.sortBy;
+  let sortBy: SortBy | undefined;
+  if (sortByParam) {
+    if (!VALID_SORT_VALUES.includes(sortByParam as SortBy)) {
+      throw new ValidationError(
+        `Invalid sortBy value. Must be one of: ${VALID_SORT_VALUES.join(', ')}`
+      );
+    }
+    sortBy = sortByParam as SortBy;
+  }
+
+  const result = await productsService.listProducts({ limit, lastKey, sortBy });
+  const encodedLastKey = result.lastEvaluatedKey
+    ? encodePaginationToken(result.lastEvaluatedKey)
+    : null;
 
   const response: ProductListResponse = {
-    products: products.map(mapProductToResponse),
-    count: products.length,
-    hasMore: products.length === limit,
+    products: result.products.map(mapProductToResponse),
+    count: result.products.length,
+    lastKey: encodedLastKey,
+    hasMore: !!result.lastEvaluatedKey,
+  };
+
+  return successResponse(response, 200);
+}
+
+async function handleSearchProducts(
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> {
+  const query = event.queryStringParameters?.q;
+
+  if (!query || query.trim().length < 2) {
+    throw new ValidationError(
+      'Search query parameter "q" is required and must be at least 2 characters'
+    );
+  }
+
+  const { limit, lastKey } = parsePaginationParams(event.queryStringParameters);
+
+  const result = await productsService.searchProducts(query.trim(), { limit, lastKey });
+  const encodedLastKey = result.lastEvaluatedKey
+    ? encodePaginationToken(result.lastEvaluatedKey)
+    : null;
+
+  const response: SearchProductsResponse = {
+    products: result.products.map(mapProductToResponse),
+    count: result.products.length,
+    lastKey: encodedLastKey,
+    hasMore: !!result.lastEvaluatedKey,
+    query: query.trim(),
+  };
+
+  return successResponse(response, 200);
+}
+
+async function handleGetProductsByCategory(
+  category: string,
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> {
+  // Validate category against known categories
+  if (!(PRODUCT_CATEGORIES as readonly string[]).includes(category)) {
+    throw new ValidationError(
+      `Invalid category "${category}". Valid categories: ${PRODUCT_CATEGORIES.join(', ')}`
+    );
+  }
+
+  const { limit, lastKey } = parsePaginationParams(event.queryStringParameters);
+
+  // Parse price range
+  let minPrice: number | undefined;
+  let maxPrice: number | undefined;
+
+  if (event.queryStringParameters?.minPrice) {
+    minPrice = parseFloat(event.queryStringParameters.minPrice);
+    if (isNaN(minPrice) || minPrice < 0) {
+      throw new ValidationError('minPrice must be a non-negative number');
+    }
+  }
+
+  if (event.queryStringParameters?.maxPrice) {
+    maxPrice = parseFloat(event.queryStringParameters.maxPrice);
+    if (isNaN(maxPrice) || maxPrice < 0) {
+      throw new ValidationError('maxPrice must be a non-negative number');
+    }
+  }
+
+  if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+    throw new ValidationError('minPrice must be less than or equal to maxPrice');
+  }
+
+  const result = await productsService.getProductsByCategory(category, {
+    minPrice,
+    maxPrice,
+    limit,
+    lastKey,
+  });
+
+  const encodedLastKey = result.lastEvaluatedKey
+    ? encodePaginationToken(result.lastEvaluatedKey)
+    : null;
+
+  const response: CategoryProductsResponse = {
+    products: result.products.map(mapProductToResponse),
+    count: result.products.length,
+    lastKey: encodedLastKey,
+    hasMore: !!result.lastEvaluatedKey,
+    category,
+    priceRange:
+      minPrice !== undefined || maxPrice !== undefined
+        ? { min: minPrice, max: maxPrice }
+        : null,
   };
 
   return successResponse(response, 200);
@@ -210,7 +335,7 @@ async function handleDeleteProduct(
   return successResponse({ message: 'Product deleted successfully' }, 200);
 }
 
-function mapProductToResponse(product: any): ProductResponse {
+function mapProductToResponse(product: ProductEntity): ProductResponse {
   return {
     productId: product.productId,
     name: product.name,

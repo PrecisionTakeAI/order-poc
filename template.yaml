@@ -614,6 +614,22 @@ Resources:
             Method: GET
             Auth:
               Authorizer: NONE
+        SearchProducts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /products/search
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        GetProductsByCategory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /products/category/{category}
+            Method: GET
+            Auth:
+              Authorizer: NONE
         GetProduct:
           Type: Api
           Properties:
