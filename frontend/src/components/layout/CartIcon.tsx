@@ -1,18 +1,18 @@
 import React from 'react';
 import { useCartDrawer } from '../../context/CartDrawerContext';
+import { useCart } from '../../hooks/useCart';
 
-interface CartIconProps {
-  itemCount?: number;
-}
-
-export const CartIcon: React.FC<CartIconProps> = ({ itemCount = 0 }) => {
+export const CartIcon: React.FC = () => {
   const { openCartDrawer } = useCartDrawer();
+  const { itemCount } = useCart();
+
+  const displayCount = itemCount > 99 ? '99+' : itemCount;
 
   return (
     <button
       onClick={openCartDrawer}
       className="relative text-gray-600 hover:text-primary-600"
-      aria-label="Open shopping cart"
+      aria-label={`Open shopping cart${itemCount > 0 ? ` (${itemCount} items)` : ''}`}
     >
       <svg
         className="h-6 w-6"
@@ -29,7 +29,7 @@ export const CartIcon: React.FC<CartIconProps> = ({ itemCount = 0 }) => {
       </svg>
       {itemCount > 0 && (
         <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-xs font-medium text-white">
-          {itemCount}
+          {displayCount}
         </span>
       )}
     </button>
