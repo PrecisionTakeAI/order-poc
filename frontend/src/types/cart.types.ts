@@ -1,21 +1,25 @@
-import type { Product } from './product.types';
-
 export interface CartItem {
   itemId: string;
   productId: string;
-  quantity: number;
+  productName: string;
   price: number;
-  product?: Product;
-  addedAt: string;
+  quantity: number;
+  subtotal: number;
+  currentProduct?: {
+    name: string;
+    price: number;
+    stock: number;
+    status: string;
+    imageUrl?: string;
+  } | null;
 }
 
 export interface Cart {
-  cartId: string;
   userId: string;
   items: CartItem[];
-  totalItems: number;
-  subtotal: number;
-  createdAt: string;
+  totalAmount: number;
+  currency: string;
+  itemCount: number;
   updatedAt: string;
 }
 
