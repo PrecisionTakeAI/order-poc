@@ -2,7 +2,7 @@ import React from 'react';
 import { useCart } from '../../hooks/useCart';
 
 export const CartSyncIndicator: React.FC = () => {
-  const { syncStatus, isOnline } = useCart();
+  const { syncStatus, isOnline, retrySync } = useCart();
 
   // Show nothing when synced and online
   if (syncStatus === 'synced' && isOnline) {
@@ -59,7 +59,7 @@ export const CartSyncIndicator: React.FC = () => {
     );
   }
 
-  // Show error icon
+  // Show error icon with retry button
   if (syncStatus === 'error') {
     return (
       <div className="flex items-center gap-2 text-red-600">
@@ -76,7 +76,12 @@ export const CartSyncIndicator: React.FC = () => {
             d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
           />
         </svg>
-        <span className="text-xs font-medium">Sync Error</span>
+        <button
+          onClick={retrySync}
+          className="text-xs font-medium underline hover:text-red-800"
+        >
+          Retry
+        </button>
       </div>
     );
   }

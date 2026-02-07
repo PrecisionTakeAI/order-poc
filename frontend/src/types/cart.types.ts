@@ -63,6 +63,7 @@ export interface CartContextType {
   clearCart: () => Promise<void>;
   clearCartAfterOrder: () => Promise<void>;
   refetchCart: () => Promise<void>;
+  retrySync: () => Promise<void>;
 
   // Action loading states
   addLoading: boolean;
