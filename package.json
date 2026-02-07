@@ -7,6 +7,8 @@
     "build": "sam build",
     "deploy": "sam deploy",
     "validate": "sam validate --lint",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
     "local:auth": "sam local invoke AuthFunction --event events/auth-register.json",
     "local:products": "sam local invoke ProductsFunction --event events/product-get.json",
     "local:cart": "sam local invoke CartFunction --event events/cart-add-item.json",
@@ -24,8 +26,11 @@
   "license": "ISC",
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.14.9",
     "esbuild": "^0.27.3",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.5.3"
   }
 }

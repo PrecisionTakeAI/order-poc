@@ -18,6 +18,7 @@ import {
   RefreshTokenRequest,
   RefreshTokenResponse,
   UserProfile,
+  LogoutResponse,
 } from './types';
 
 const cognitoService = new CognitoService();
@@ -58,6 +59,10 @@ export const handler = async (
 
     if (path === '/auth/profile' && method === 'GET') {
       return await handleGetProfile(event as AuthorizedAPIGatewayProxyEvent);
+    }
+
+    if (path === '/auth/logout' && method === 'POST') {
+      return await handleLogout(event);
     }
 
     return errorResponse('Route not found', 404, 'NOT_FOUND');
@@ -222,6 +227,32 @@ async function handleGetProfile(
     status: user.status,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
+  };
+
+  return successResponse(response, 200);
+}
+
+async function handleLogout(
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> {
+  const authHeader = event.headers.Authorization || event.headers.authorization;
+
+  if (!authHeader) {
+    return errorResponse('Authorization header is required', 401, 'UNAUTHORIZED');
+  }
+
+  const tokenMatch = authHeader.match(/^Bearer (.+)$/);
+
+  if (!tokenMatch) {
+    return errorResponse('Invalid authorization header format', 401, 'UNAUTHORIZED');
+  }
+
+  const accessToken = tokenMatch[1];
+
+  await cognitoService.globalSignOut(accessToken);
+
+  const response: LogoutResponse = {
+    message: 'Logged out successfully',
   };
 
   return successResponse(response, 200);

@@ -65,3 +65,7 @@ export interface UserProfile {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface LogoutResponse {
+  message: string;
+}

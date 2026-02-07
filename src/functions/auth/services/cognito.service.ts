@@ -5,6 +5,7 @@ import {
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
   AdminGetUserCommand,
+  GlobalSignOutCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 const client = new CognitoIdentityProviderClient({});
@@ -138,5 +139,13 @@ export class CognitoService {
     });
 
     return attributes;
+  }
+
+  async globalSignOut(accessToken: string): Promise<void> {
+    const command = new GlobalSignOutCommand({
+      AccessToken: accessToken,
+    });
+
+    await client.send(command);
   }
 }
