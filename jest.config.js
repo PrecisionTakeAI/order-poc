@@ -7,7 +7,9 @@ module.exports = {
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1'
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@aws-sdk/client-dynamodb$': '<rootDir>/src/node_modules/@aws-sdk/client-dynamodb',
+    '^@aws-sdk/lib-dynamodb$': '<rootDir>/src/node_modules/@aws-sdk/lib-dynamodb',
   },
   transform: {
     '^.+\\.ts$': ['ts-jest', {
