@@ -87,7 +87,8 @@ class ApiService {
 
     const { accessToken, expiresIn } = response.data.data;
     storage.setAccessToken(accessToken);
-    storage.setTokenExpiry(Date.now() + expiresIn * 1000);
+    const safeExpiresIn = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600;
+    storage.setTokenExpiry(Date.now() + safeExpiresIn * 1000);
 
     return accessToken;
   }

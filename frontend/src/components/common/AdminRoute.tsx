@@ -7,6 +7,9 @@ interface AdminRouteProps {
   children: React.ReactNode;
 }
 
+// SECURITY: Client-side admin check is for UX only.
+// Backend MUST validate JWT signatures and enforce authorization on all admin endpoints.
+// This check can be bypassed by modifying localStorage — it only controls UI routing.
 export const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
 

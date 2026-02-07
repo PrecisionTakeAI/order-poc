@@ -35,6 +35,8 @@ export const getTokenExpiration = (token: string): number | null => {
   return payload?.exp || null;
 };
 
+// SECURITY: Decodes JWT for display purposes only. No signature validation is
+// performed client-side. Backend must validate JWT signatures before trusting claims.
 export const getUserGroups = (token: string): string[] => {
   const payload = decodeToken(token);
   return payload?.['cognito:groups'] || [];

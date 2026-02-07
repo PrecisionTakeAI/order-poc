@@ -12,28 +12,45 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const DEFAULT_EXPIRES_IN = 3600;
+const REFRESH_BUFFER_SECONDS = 300;
+
+function sanitizeExpiresIn(value: unknown): number {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) {
+    return DEFAULT_EXPIRES_IN;
+  }
+  return num;
+}
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const refreshTimerRef = useRef<number | null>(null);
+  const refreshAccessTokenRef = useRef<() => Promise<void>>(undefined);
 
-  const scheduleTokenRefresh = useCallback((expiresIn: number): void => {
+  const clearRefreshTimer = useCallback((): void => {
     if (refreshTimerRef.current) {
       window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
     }
+  }, []);
 
-    const delay = (expiresIn - 300) * 1000;
-
-    if (delay <= 0) {
-      refreshAccessToken();
-      return;
-    }
+  const scheduleTokenRefresh = useCallback((expiresIn: number): void => {
+    clearRefreshTimer();
+    const safeExpiresIn = sanitizeExpiresIn(expiresIn);
+    const delay = (safeExpiresIn - REFRESH_BUFFER_SECONDS) * 1000;
 
     refreshTimerRef.current = window.setTimeout(() => {
-      refreshAccessToken();
-    }, delay);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      refreshAccessTokenRef.current?.();
+    }, Math.max(delay, 0));
+  }, [clearRefreshTimer]);
+
+  const logout = useCallback(async (): Promise<void> => {
+    clearRefreshTimer();
+    await authService.logout();
+    setUser(null);
+  }, [clearRefreshTimer]);
 
   const refreshAccessToken = useCallback(async (): Promise<void> => {
     try {
@@ -47,27 +64,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         );
       }
 
-      const expiryTimestamp = Date.now() + response.expiresIn * 1000;
+      const safeExpiresIn = sanitizeExpiresIn(response.expiresIn);
+      const expiryTimestamp = Date.now() + safeExpiresIn * 1000;
       storage.setTokenExpiry(expiryTimestamp);
-      scheduleTokenRefresh(response.expiresIn);
+      scheduleTokenRefresh(safeExpiresIn);
     } catch (error) {
       console.error('Token refresh failed:', error);
       await logout();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scheduleTokenRefresh]);
+  }, [scheduleTokenRefresh, logout]);
 
-  const logout = useCallback(async (): Promise<void> => {
-    if (refreshTimerRef.current) {
-      window.clearTimeout(refreshTimerRef.current);
-    }
-    await authService.logout();
-    setUser(null);
-  }, []);
-
-  const isAdmin = useCallback((): boolean => {
-    return user?.groups?.includes('admin') || false;
-  }, [user]);
+  // Keep ref in sync so scheduleTokenRefresh can call it without circular dependency
+  useEffect(() => {
+    refreshAccessTokenRef.current = refreshAccessToken;
+  }, [refreshAccessToken]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -77,7 +87,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (storedUser && accessToken) {
         if (storage.isTokenExpired() && refreshToken) {
-          await refreshAccessToken().finally(() => setLoading(false));
+          try {
+            await refreshAccessTokenRef.current?.();
+          } finally {
+            setLoading(false);
+          }
         } else if (!storage.isTokenExpired()) {
           const expiry = storage.getTokenExpiry();
           if (expiry) {
@@ -98,17 +112,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
 
     return () => {
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current);
-      }
+      clearRefreshTimer();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [scheduleTokenRefresh, clearRefreshTimer]);
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     const response = await authService.login({ email, password });
 
-    const expiryTimestamp = Date.now() + response.expiresIn * 1000;
+    const safeExpiresIn = sanitizeExpiresIn(response.expiresIn);
+    const expiryTimestamp = Date.now() + safeExpiresIn * 1000;
     storage.setTokenExpiry(expiryTimestamp);
 
     const groups = getUserGroups(response.accessToken);
@@ -117,8 +129,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(userWithGroups);
     storage.setUser(userWithGroups);
 
-    scheduleTokenRefresh(response.expiresIn);
+    scheduleTokenRefresh(safeExpiresIn);
   }, [scheduleTokenRefresh]);
+
+  const isAdmin = useCallback((): boolean => {
+    return user?.groups?.includes('admin') || false;
+  }, [user]);
 
   const value: AuthContextType = {
     isAuthenticated: !!user,
