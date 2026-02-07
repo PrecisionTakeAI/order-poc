@@ -22,6 +22,7 @@ export class OrdersService {
   ): Promise<OrderEntity> {
     const orderId = uuidv4();
     const now = new Date().toISOString();
+    const orderDate = now.split('T')[0];
 
     const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
 
@@ -30,6 +31,7 @@ export class OrdersService {
       SK: `ORDER#${orderId}`,
       orderId,
       userId,
+      orderDate,
       items,
       totalAmount,
       currency: 'USD',

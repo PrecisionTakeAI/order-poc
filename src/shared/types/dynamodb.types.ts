@@ -53,6 +53,7 @@ export interface OrderEntity extends BaseEntity {
   SK: `ORDER#${string}`;
   orderId: string;
   userId: string;
+  orderDate: string;
   items: OrderItem[];
   totalAmount: number;
   currency: string;
