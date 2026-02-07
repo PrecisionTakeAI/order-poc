@@ -11,7 +11,6 @@ export { useFilters } from './useFilters';
 export type { UseApiOptions, UseApiResult } from './useApi';
 export type { UseProductsResult } from './useProducts';
 export type { UseProductResult } from './useProduct';
-export type { UseCartResult } from './useCart';
 export type { UseOrdersResult } from './useOrders';
 export type { UseOrderResult } from './useOrder';
 export type { UseFiltersResult, FilterState } from './useFilters';
