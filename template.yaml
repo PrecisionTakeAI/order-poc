@@ -143,6 +143,8 @@ Resources:
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       Tags:
@@ -161,11 +163,26 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
+        - AttributeName: category
+          AttributeType: S
+        - AttributeName: price
+          AttributeType: N
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: category-price-index
+          KeySchema:
+            - AttributeName: category
+              KeyType: HASH
+            - AttributeName: price
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       Tags:
@@ -189,6 +206,8 @@ Resources:
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       Tags:
@@ -207,11 +226,26 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: orderDate
+          AttributeType: S
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: userId-orderDate-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: orderDate
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       Tags:
@@ -308,6 +342,7 @@ Resources:
       Environment:
         Variables:
           PRODUCTS_TABLE: !Ref ProductsTable
+          PRODUCTS_CATEGORY_INDEX: category-price-index
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProductsTable
@@ -420,6 +455,7 @@ Resources:
       Environment:
         Variables:
           ORDERS_TABLE: !Ref OrdersTable
+          ORDERS_USER_DATE_INDEX: userId-orderDate-index
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref OrdersTable
