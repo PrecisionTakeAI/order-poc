@@ -36,15 +36,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const scheduleTokenRefresh = useCallback((expiresIn: number): void => {
-    clearRefreshTimer();
-    const safeExpiresIn = sanitizeExpiresIn(expiresIn);
-    const delay = (safeExpiresIn - REFRESH_BUFFER_SECONDS) * 1000;
+  const scheduleTokenRefresh = useCallback(
+    (expiresIn: number): void => {
+      clearRefreshTimer();
+      const safeExpiresIn = sanitizeExpiresIn(expiresIn);
+      const delay = (safeExpiresIn - REFRESH_BUFFER_SECONDS) * 1000;
 
-    refreshTimerRef.current = window.setTimeout(() => {
-      refreshAccessTokenRef.current?.();
-    }, Math.max(delay, 0));
-  }, [clearRefreshTimer]);
+      refreshTimerRef.current = window.setTimeout(
+        () => {
+          refreshAccessTokenRef.current?.();
+        },
+        Math.max(delay, 0)
+      );
+    },
+    [clearRefreshTimer]
+  );
 
   const logout = useCallback(async (): Promise<void> => {
     clearRefreshTimer();
@@ -59,9 +65,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (accessToken) {
         const groups = getUserGroups(accessToken);
-        setUser((prevUser) =>
-          prevUser ? { ...prevUser, groups } : null
-        );
+        setUser((prevUser) => (prevUser ? { ...prevUser, groups } : null));
       }
 
       const safeExpiresIn = sanitizeExpiresIn(response.expiresIn);
@@ -116,21 +120,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, [scheduleTokenRefresh, clearRefreshTimer]);
 
-  const login = useCallback(async (email: string, password: string): Promise<void> => {
-    const response = await authService.login({ email, password });
+  const login = useCallback(
+    async (email: string, password: string): Promise<void> => {
+      const response = await authService.login({ email, password });
 
-    const safeExpiresIn = sanitizeExpiresIn(response.expiresIn);
-    const expiryTimestamp = Date.now() + safeExpiresIn * 1000;
-    storage.setTokenExpiry(expiryTimestamp);
+      const safeExpiresIn = sanitizeExpiresIn(response.expiresIn);
+      const expiryTimestamp = Date.now() + safeExpiresIn * 1000;
+      storage.setTokenExpiry(expiryTimestamp);
 
-    const groups = getUserGroups(response.accessToken);
-    const userWithGroups = { ...response.user, groups };
+      const groups = getUserGroups(response.accessToken);
+      const userWithGroups = { ...response.user, groups };
 
-    setUser(userWithGroups);
-    storage.setUser(userWithGroups);
+      setUser(userWithGroups);
+      storage.setUser(userWithGroups);
 
-    scheduleTokenRefresh(safeExpiresIn);
-  }, [scheduleTokenRefresh]);
+      scheduleTokenRefresh(safeExpiresIn);
+    },
+    [scheduleTokenRefresh]
+  );
 
   const isAdmin = useCallback((): boolean => {
     return user?.groups?.includes('admin') || false;

@@ -113,7 +113,7 @@ export const ResetPasswordPage: React.FC = () => {
 
         <div className="text-center text-sm text-gray-600">
           Remember your password?{' '}
-          <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">
+          <Link to="/login" className="font-medium text-primary-600 hover:text-primary-700">
             Sign in
           </Link>
         </div>

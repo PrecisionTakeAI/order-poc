@@ -40,7 +40,7 @@ export const PasswordStrengthIndicator: React.FC<PasswordStrengthIndicatorProps>
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-200">
           <div
             className={`h-full transition-all duration-300 ${getStrengthColor()}`}
             style={{ width: `${strength}%` }}
@@ -54,7 +54,7 @@ export const PasswordStrengthIndicator: React.FC<PasswordStrengthIndicatorProps>
           return (
             <li
               key={index}
-              className={`text-xs flex items-center gap-2 ${
+              className={`flex items-center gap-2 text-xs ${
                 isMet ? 'text-green-600' : 'text-gray-500'
               }`}
             >

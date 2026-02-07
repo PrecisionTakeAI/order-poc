@@ -16,18 +16,12 @@ import type { ApiResponse } from '../types/api.types';
 
 class AuthService {
   async register(data: RegisterRequest): Promise<RegisterResponse> {
-    const response = await api.post<ApiResponse<RegisterResponse>>(
-      '/auth/register',
-      data
-    );
+    const response = await api.post<ApiResponse<RegisterResponse>>('/auth/register', data);
     return response.data.data;
   }
 
   async login(data: LoginRequest): Promise<LoginResponse> {
-    const response = await api.post<ApiResponse<LoginResponse>>(
-      '/auth/login',
-      data
-    );
+    const response = await api.post<ApiResponse<LoginResponse>>('/auth/login', data);
     const loginData = response.data.data;
 
     storage.setAccessToken(loginData.accessToken);
@@ -59,10 +53,9 @@ class AuthService {
       throw new Error('No refresh token available');
     }
 
-    const response = await api.post<ApiResponse<RefreshTokenResponse>>(
-      '/auth/refresh-token',
-      { refreshToken }
-    );
+    const response = await api.post<ApiResponse<RefreshTokenResponse>>('/auth/refresh-token', {
+      refreshToken,
+    });
 
     const refreshData = response.data.data;
     storage.setAccessToken(refreshData.accessToken);

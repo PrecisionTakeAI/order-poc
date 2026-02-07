@@ -65,10 +65,7 @@ export const LoginPage: React.FC = () => {
         />
 
         <div className="flex justify-end">
-          <Link
-            to="/forgot-password"
-            className="text-sm text-primary-600 hover:text-primary-700"
-          >
+          <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700">
             Forgot password?
           </Link>
         </div>
@@ -79,7 +76,7 @@ export const LoginPage: React.FC = () => {
 
         <div className="text-center text-sm text-gray-600">
           Don't have an account?{' '}
-          <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">
+          <Link to="/register" className="font-medium text-primary-600 hover:text-primary-700">
             Sign up
           </Link>
         </div>
