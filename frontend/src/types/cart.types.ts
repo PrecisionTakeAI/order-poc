@@ -32,6 +32,15 @@ export interface UpdateCartItemRequest {
   quantity: number;
 }
 
+export type SyncStatus = 'synced' | 'pending' | 'error';
+
+export interface QueuedCartOperation {
+  type: 'add' | 'update' | 'remove' | 'clear';
+  payload?: unknown;
+  retries: number;
+  timestamp: number;
+}
+
 export interface CartContextType {
   // State
   cart: Cart | null;
@@ -43,11 +52,16 @@ export interface CartContextType {
   totalAmount: number;
   currency: string;
 
+  // Sync state
+  syncStatus: SyncStatus;
+  isOnline: boolean;
+
   // Actions
   addToCart: (request: AddToCartRequest) => Promise<void>;
   updateCartItem: (itemId: string, request: UpdateCartItemRequest) => Promise<void>;
   removeFromCart: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
+  clearCartAfterOrder: () => Promise<void>;
   refetchCart: () => Promise<void>;
 
   // Action loading states

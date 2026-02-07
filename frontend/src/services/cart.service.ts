@@ -11,20 +11,20 @@ class CartService {
   }
 
   async addToCart(request: AddToCartRequest): Promise<ApiResponse<Cart>> {
-    const response = await this.api.post<ApiResponse<Cart>>('/cart/items', request);
+    const response = await this.api.post<ApiResponse<Cart>>('/cart', request);
     return response.data;
   }
 
   async updateCartItem(
-    itemId: string,
+    productId: string,
     request: UpdateCartItemRequest
   ): Promise<ApiResponse<Cart>> {
-    const response = await this.api.put<ApiResponse<Cart>>(`/cart/items/${itemId}`, request);
+    const response = await this.api.put<ApiResponse<Cart>>(`/cart/${productId}`, request);
     return response.data;
   }
 
-  async removeFromCart(itemId: string): Promise<ApiResponse<Cart>> {
-    const response = await this.api.delete<ApiResponse<Cart>>(`/cart/items/${itemId}`);
+  async removeFromCart(productId: string): Promise<ApiResponse<Cart>> {
+    const response = await this.api.delete<ApiResponse<Cart>>(`/cart/${productId}`);
     return response.data;
   }
 

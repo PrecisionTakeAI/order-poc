@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { CartItemCard } from './CartItemCard';
 import { CartSummary } from './CartSummary';
 import { CartEmptyState } from './CartEmptyState';
+import { CartSyncIndicator } from './CartSyncIndicator';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -89,9 +90,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
       <div className="fixed inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-xl sm:max-w-md">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Shopping Cart {hasItems && `(${itemCount})`}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Shopping Cart {hasItems && `(${itemCount})`}
+            </h2>
+            <CartSyncIndicator />
+          </div>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
