@@ -54,6 +54,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             src={imageUrl}
             alt={name}
             className="h-full w-full object-cover"
+            loading="lazy"
             onError={(e) => {
               e.currentTarget.src = 'https://via.placeholder.com/300x300?text=No+Image';
             }}
@@ -83,12 +84,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Product Info */}
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">{name}</h3>
+        <h3 className="text-base md:text-lg font-semibold text-gray-900 line-clamp-2">{name}</h3>
 
         {rating > 0 && <StarRating rating={rating} size="sm" showNumeric />}
 
-        <div className="flex items-center justify-between">
-          <span className="text-xl font-bold text-primary-600">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <span className="text-lg md:text-xl font-bold text-primary-600">
             ${price.toFixed(2)}
           </span>
 
@@ -99,6 +100,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               fullWidth={false}
               onClick={handleAddToCart}
               disabled={!inStock}
+              className="w-full sm:w-auto"
             >
               Add to Cart
             </Button>

@@ -66,12 +66,12 @@ export const Pagination: React.FC<PaginationProps> = ({
   const pageNumbers = getPageNumbers();
 
   return (
-    <nav className={`flex items-center justify-center space-x-2 ${className}`} aria-label="Pagination">
+    <nav className={`flex items-center justify-center gap-1 md:gap-2 ${className}`} aria-label="Pagination">
       {/* Previous button */}
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        className="rounded-lg border border-gray-300 px-2 md:px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary-500 min-h-[44px] flex items-center justify-center"
         aria-label="Previous page"
       >
         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,7 +96,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           <button
             key={pageNum}
             onClick={() => onPageChange(pageNum)}
-            className={`min-w-[2.5rem] rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+            className={`min-w-[2.5rem] min-h-[44px] rounded-lg border px-2 md:px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500 flex items-center justify-center ${
               isActive
                 ? 'border-primary-600 bg-primary-600 text-white'
                 : 'border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -113,7 +113,7 @@ export const Pagination: React.FC<PaginationProps> = ({
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        className="rounded-lg border border-gray-300 px-2 md:px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary-500 min-h-[44px] flex items-center justify-center"
         aria-label="Next page"
       >
         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
