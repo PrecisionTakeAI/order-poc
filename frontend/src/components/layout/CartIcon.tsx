@@ -1,13 +1,19 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useCartDrawer } from '../../context/CartDrawerContext';
 
 interface CartIconProps {
   itemCount?: number;
 }
 
 export const CartIcon: React.FC<CartIconProps> = ({ itemCount = 0 }) => {
+  const { openCartDrawer } = useCartDrawer();
+
   return (
-    <Link to="/cart" className="relative text-gray-600 hover:text-primary-600">
+    <button
+      onClick={openCartDrawer}
+      className="relative text-gray-600 hover:text-primary-600"
+      aria-label="Open shopping cart"
+    >
       <svg
         className="h-6 w-6"
         fill="none"
@@ -26,6 +32,6 @@ export const CartIcon: React.FC<CartIconProps> = ({ itemCount = 0 }) => {
           {itemCount}
         </span>
       )}
-    </Link>
+    </button>
   );
 };
