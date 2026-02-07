@@ -1,56 +1,59 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Button } from '../components/common/Button';
 
 export const HomePage: React.FC = () => {
-  const { user, logout } = useAuth();
-  const [loading, setLoading] = React.useState(false);
-
-  const handleLogout = async () => {
-    setLoading(true);
-    try {
-      await logout();
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { user } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <h1 className="text-xl font-bold text-primary-600">Cricket Equipment Portal</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-gray-700">Welcome, {user?.fullName || user?.email}</span>
-              <Button
-                variant="secondary"
-                onClick={handleLogout}
-                loading={loading}
-                className="w-auto"
-              >
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="space-y-8">
+      {/* Welcome section */}
+      <div className="rounded-lg bg-white p-8 shadow">
+        <h1 className="mb-4 text-2xl font-bold text-gray-900">
+          Welcome back, {user?.fullName || user?.email}!
+        </h1>
+        <p className="text-gray-600">Your one-stop shop for all cricket equipment and gear.</p>
+      </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-lg bg-white p-8 shadow">
-          <h2 className="mb-4 text-2xl font-bold text-gray-900">
-            Welcome to Cricket Equipment Portal
-          </h2>
-          <p className="mb-6 text-gray-600">
-            Your one-stop shop for all cricket equipment and gear.
-          </p>
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-            <p className="text-sm text-blue-800">
-              Authentication is working! You're successfully logged in.
-            </p>
-          </div>
-        </div>
-      </main>
+      {/* Quick links */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <Link
+          to="/products"
+          className="rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-md"
+        >
+          <h3 className="text-lg font-semibold text-gray-900">Browse Products</h3>
+          <p className="mt-2 text-sm text-gray-600">Explore our full range of cricket equipment.</p>
+          <span className="mt-4 inline-block text-sm font-medium text-primary-600">
+            View Products &rarr;
+          </span>
+        </Link>
+        <Link
+          to="/cart"
+          className="rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-md"
+        >
+          <h3 className="text-lg font-semibold text-gray-900">Shopping Cart</h3>
+          <p className="mt-2 text-sm text-gray-600">Review items in your cart and checkout.</p>
+          <span className="mt-4 inline-block text-sm font-medium text-primary-600">
+            View Cart &rarr;
+          </span>
+        </Link>
+        <Link
+          to="/orders"
+          className="rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-md"
+        >
+          <h3 className="text-lg font-semibold text-gray-900">My Orders</h3>
+          <p className="mt-2 text-sm text-gray-600">Track and review your past orders.</p>
+          <span className="mt-4 inline-block text-sm font-medium text-primary-600">
+            View Orders &rarr;
+          </span>
+        </Link>
+      </div>
+
+      {/* Featured products placeholder */}
+      <div className="rounded-lg bg-white p-8 shadow">
+        <h2 className="mb-4 text-xl font-bold text-gray-900">Featured Products</h2>
+        <p className="text-gray-600">Featured products will appear here soon.</p>
+      </div>
     </div>
   );
 };
