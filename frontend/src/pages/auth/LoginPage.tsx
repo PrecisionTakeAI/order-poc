@@ -35,7 +35,7 @@ export const LoginPage: React.FC = () => {
 
     try {
       await login(data.email, data.password);
-      navigate('/home');
+      navigate('/');
     } catch (err) {
       setError(authService.handleError(err));
     } finally {

@@ -6,7 +6,7 @@ export const AccessDeniedPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleGoHome = () => {
-    navigate('/home');
+    navigate('/');
   };
 
   return (
