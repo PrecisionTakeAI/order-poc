@@ -62,20 +62,10 @@ Resources:
           CognitoAuthorizer:
             UserPoolArn: !GetAtt UserPool.Arn
       MethodSettings:
-        - ResourcePath: /auth/*
-          HttpMethod: POST
-          ThrottlingBurstLimit: 10
-          ThrottlingRateLimit: 5
-          LoggingLevel: INFO
-          DataTraceEnabled: true
-          MetricsEnabled: true
         - ResourcePath: '/*'
           HttpMethod: '*'
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 25
-          LoggingLevel: INFO
-          DataTraceEnabled: true
-          MetricsEnabled: true
 
   # Cognito User Pool
   UserPool:
@@ -235,8 +225,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub OrderPOC-Auth-${Environment}
-      CodeUri: src/functions/auth
-      Handler: handler.handler
+      CodeUri: src/
+      Handler: functions/auth/handler.handler
       Description: Authentication and user management
       Environment:
         Variables:
@@ -298,22 +288,22 @@ Resources:
             RestApiId: !Ref OrderApi
             Path: /auth/profile
             Method: GET
-      Metadata:
-        BuildMethod: esbuild
-        BuildProperties:
-          Minify: true
-          Target: es2020
-          EntryPoints:
-            - handler.ts
-          External:
-            - '@aws-sdk/*'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        EntryPoints:
+          - functions/auth/handler.ts
+        External:
+          - '@aws-sdk/*'
 
   ProductsFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub OrderPOC-Products-${Environment}
-      CodeUri: src/functions/products
-      Handler: handler.handler
+      CodeUri: src/
+      Handler: functions/products/handler.handler
       Description: Product catalog management
       Environment:
         Variables:
@@ -356,22 +346,22 @@ Resources:
             RestApiId: !Ref OrderApi
             Path: /products/{id}
             Method: DELETE
-      Metadata:
-        BuildMethod: esbuild
-        BuildProperties:
-          Minify: true
-          Target: es2020
-          EntryPoints:
-            - handler.ts
-          External:
-            - '@aws-sdk/*'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        EntryPoints:
+          - functions/products/handler.ts
+        External:
+          - '@aws-sdk/*'
 
   CartFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub OrderPOC-Cart-${Environment}
-      CodeUri: src/functions/cart
-      Handler: handler.handler
+      CodeUri: src/
+      Handler: functions/cart/handler.handler
       Description: Shopping cart management
       Environment:
         Variables:
@@ -410,22 +400,22 @@ Resources:
             RestApiId: !Ref OrderApi
             Path: /cart
             Method: DELETE
-      Metadata:
-        BuildMethod: esbuild
-        BuildProperties:
-          Minify: true
-          Target: es2020
-          EntryPoints:
-            - handler.ts
-          External:
-            - '@aws-sdk/*'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        EntryPoints:
+          - functions/cart/handler.ts
+        External:
+          - '@aws-sdk/*'
 
   OrdersFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub OrderPOC-Orders-${Environment}
-      CodeUri: src/functions/orders
-      Handler: handler.handler
+      CodeUri: src/
+      Handler: functions/orders/handler.handler
       Description: Order processing and management
       Environment:
         Variables:
@@ -458,15 +448,15 @@ Resources:
             RestApiId: !Ref OrderApi
             Path: /orders/{id}/status
             Method: PUT
-      Metadata:
-        BuildMethod: esbuild
-        BuildProperties:
-          Minify: true
-          Target: es2020
-          EntryPoints:
-            - handler.ts
-          External:
-            - '@aws-sdk/*'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        EntryPoints:
+          - functions/orders/handler.ts
+        External:
+          - '@aws-sdk/*'
 
 Outputs:
   ApiEndpoint:
