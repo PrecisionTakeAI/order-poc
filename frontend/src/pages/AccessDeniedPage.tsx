@@ -10,8 +10,8 @@ export const AccessDeniedPage: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4 py-8">
+      <div className="w-full max-w-md rounded-lg bg-white p-6 md:p-8 shadow-lg">
         <div className="text-center">
           <div className="mb-4">
             <svg
@@ -28,8 +28,8 @@ export const AccessDeniedPage: React.FC = () => {
               />
             </svg>
           </div>
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">Access Denied</h1>
-          <p className="mb-6 text-gray-600">
+          <h1 className="mb-2 text-2xl md:text-3xl font-bold text-gray-900">Access Denied</h1>
+          <p className="mb-6 text-sm md:text-base text-gray-600">
             You do not have the required permissions to access this page. Admin privileges are
             required.
           </p>

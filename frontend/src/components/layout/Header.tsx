@@ -55,7 +55,7 @@ export const Header: React.FC = () => {
           </nav>
 
           {/* Right side: Search, Cart, User, Mobile toggle */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <SearchBar />
             <CartIcon />
             <div className="hidden md:block">
@@ -65,7 +65,7 @@ export const Header: React.FC = () => {
             {/* Mobile hamburger button */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="rounded-lg p-1 text-gray-600 hover:bg-gray-100 hover:text-gray-900 md:hidden"
+              className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 md:hidden min-w-[44px] min-h-[44px]"
               aria-label="Open menu"
             >
               <svg

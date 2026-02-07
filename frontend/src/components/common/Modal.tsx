@@ -24,10 +24,10 @@ export const Modal: React.FC<ModalProps> = ({
   const previousActiveElement = useRef<HTMLElement | null>(null);
 
   const sizeClasses = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
+    sm: 'max-w-sm w-full mx-4',
+    md: 'max-w-md w-full mx-4',
+    lg: 'max-w-lg w-full mx-4',
+    xl: 'max-w-xl w-full mx-4',
   };
 
   useEffect(() => {
@@ -90,7 +90,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -98,7 +98,7 @@ export const Modal: React.FC<ModalProps> = ({
     >
       <div
         ref={modalRef}
-        className={`relative w-full ${sizeClasses[size]} rounded-lg bg-white shadow-xl ${className}`}
+        className={`relative ${sizeClasses[size]} rounded-lg bg-white shadow-xl ${className}`}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
         tabIndex={-1}
