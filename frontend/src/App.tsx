@@ -7,6 +7,7 @@ import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { HomePage } from './pages/HomePage';
+import { AccessDeniedPage } from './pages/AccessDeniedPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 const App: React.FC = () => {
@@ -27,6 +28,7 @@ const App: React.FC = () => {
               </PrivateRoute>
             }
           />
+          <Route path="/access-denied" element={<AccessDeniedPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>

@@ -2,6 +2,7 @@ export interface User {
   userId: string;
   email: string;
   fullName?: string;
+  groups?: string[];
 }
 
 export interface RegisterRequest {
@@ -59,4 +60,11 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
+  isAdmin: () => boolean;
+}
+
+export interface RefreshTokenResponse {
+  accessToken: string;
+  expiresIn: number;
+  tokenType: string;
 }
