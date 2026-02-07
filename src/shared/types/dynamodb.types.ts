@@ -37,6 +37,7 @@ export interface CartEntity extends BaseEntity {
   items: CartItem[];
   totalAmount: number;
   currency: string;
+  version: number;
 }
 
 export interface CartItem {

@@ -1,9 +1,12 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { successResponse, errorResponse } from '../../shared/utils/response.util';
-import { ValidationError, NotFoundError } from '../../shared/utils/error.util';
+import { ValidationError, NotFoundError, ConflictError } from '../../shared/utils/error.util';
 import { validateRequestBody } from '../../shared/utils/validation.util';
 import { AuthorizedAPIGatewayProxyEvent } from '../../shared/types';
 import { CartService } from './services/cart.service';
+import { ProductsService } from '../products/services/products.service';
+import { validateProduct } from './utils/validation';
+import { saveCartWithRetry } from './utils/retry';
 import {
   AddItemRequest,
   UpdateItemRequest,
@@ -12,6 +15,7 @@ import {
 } from './types';
 
 const cartService = new CartService();
+const productsService = new ProductsService();
 
 export const handler = async (
   event: AuthorizedAPIGatewayProxyEvent
@@ -39,20 +43,20 @@ export const handler = async (
       return await handleClearCart(userId);
     }
 
-    if (path === '/cart/items' && method === 'POST') {
+    if (path === '/cart' && method === 'POST') {
       return await handleAddItem(userId, event);
     }
 
-    const itemIdMatch = path.match(/^\/cart\/items\/([^/]+)$/);
-    if (itemIdMatch) {
-      const itemId = itemIdMatch[1];
+    const productIdMatch = path.match(/^\/cart\/([^/]+)$/);
+    if (productIdMatch) {
+      const productId = decodeURIComponent(productIdMatch[1]);
 
       if (method === 'PUT') {
-        return await handleUpdateItem(userId, itemId, event);
+        return await handleUpdateItem(userId, productId, event);
       }
 
       if (method === 'DELETE') {
-        return await handleRemoveItem(userId, itemId);
+        return await handleRemoveItem(userId, productId);
       }
     }
 
@@ -60,7 +64,7 @@ export const handler = async (
   } catch (error) {
     console.error('Cart Handler - Error:', error);
 
-    if (error instanceof ValidationError || error instanceof NotFoundError) {
+    if (error instanceof ValidationError || error instanceof NotFoundError || error instanceof ConflictError) {
       return errorResponse(error.message, error.statusCode, error.code, error.details);
     }
 
@@ -81,14 +85,15 @@ async function handleGetCart(userId: string): Promise<APIGatewayProxyResult> {
       items: [],
       totalAmount: 0,
       currency: 'USD',
+      itemCount: 0,
       updatedAt: new Date().toISOString(),
     };
     return successResponse(emptyCart, 200);
   }
 
-  const response: CartResponse = mapCartToResponse(cart);
+  const enrichedCart = await cartService.enrichCartWithProducts(cart, productsService);
 
-  return successResponse(response, 200);
+  return successResponse(enrichedCart, 200);
 }
 
 async function handleAddItem(
@@ -98,54 +103,88 @@ async function handleAddItem(
   const body = JSON.parse(event.body || '{}') as AddItemRequest;
 
   validateRequestBody(body, [
-    { field: 'productId', required: true, type: 'string' },
-    { field: 'productName', required: true, type: 'string' },
-    { field: 'price', required: true, type: 'number', min: 0 },
-    { field: 'quantity', required: true, type: 'number', min: 1 },
+    { field: 'productId', required: true, type: 'string', minLength: 1 },
+    { field: 'quantity', required: true, type: 'number', min: 1, max: 99 },
   ]);
 
-  const { productId, productName, price, quantity } = body;
+  const { productId, quantity } = body;
 
-  const cart = await cartService.addItem(
-    userId,
-    productId,
-    productName,
-    price,
-    quantity
-  );
+  // Check existing cart quantity for accurate stock validation
+  const existingCart = await cartService.getCart(userId);
+  const existingItem = existingCart?.items.find((item) => item.productId === productId);
+  const existingQuantity = existingItem?.quantity || 0;
 
-  const response: CartResponse = mapCartToResponse(cart);
+  // Validate product exists, is active, and has sufficient stock (including existing cart quantity)
+  const product = await validateProduct(productId, quantity, productsService, existingQuantity);
+
+  // Add item to cart (does not save yet)
+  const cart = await cartService.addItem(userId, product, quantity);
+
+  // Save cart with retry logic — re-apply operation on conflict
+  const savedCart = await saveCartWithRetry(cart, cartService, async (latestCart) => {
+    const latestItem = latestCart?.items.find((item) => item.productId === productId);
+    const latestExistingQty = latestItem?.quantity || 0;
+    await validateProduct(productId, quantity, productsService, latestExistingQty);
+    return cartService.addItem(userId, product, quantity);
+  });
+
+  const response: CartResponse = mapCartToResponse(savedCart);
 
   return successResponse(response, 200);
 }
 
 async function handleUpdateItem(
   userId: string,
-  itemId: string,
+  productId: string,
   event: AuthorizedAPIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
   const body = JSON.parse(event.body || '{}') as UpdateItemRequest;
 
   validateRequestBody(body, [
-    { field: 'quantity', required: true, type: 'number', min: 1 },
+    { field: 'quantity', required: true, type: 'number', min: 0, max: 99 },
   ]);
 
   const { quantity } = body;
 
-  const cart = await cartService.updateItem(userId, itemId, quantity);
+  // If quantity > 0, validate product and stock (quantity is the new absolute value, no existing offset)
+  if (quantity > 0) {
+    await validateProduct(productId, quantity, productsService);
+  }
 
-  const response: CartResponse = mapCartToResponse(cart);
+  // Update item (or remove if quantity is 0)
+  const cart = await cartService.updateItem(userId, productId, quantity);
+
+  // Save cart with retry logic — re-apply operation on conflict
+  const savedCart = await saveCartWithRetry(cart, cartService, async (latestCart) => {
+    if (!latestCart) {
+      throw new NotFoundError('Cart not found');
+    }
+    if (quantity > 0) {
+      await validateProduct(productId, quantity, productsService);
+    }
+    return cartService.updateItem(userId, productId, quantity);
+  });
+
+  const response: CartResponse = mapCartToResponse(savedCart);
 
   return successResponse(response, 200);
 }
 
 async function handleRemoveItem(
   userId: string,
-  itemId: string
+  productId: string
 ): Promise<APIGatewayProxyResult> {
-  const cart = await cartService.removeItem(userId, itemId);
+  const cart = await cartService.removeItem(userId, productId);
 
-  const response: CartResponse = mapCartToResponse(cart);
+  // Save cart with retry logic — re-apply operation on conflict
+  const savedCart = await saveCartWithRetry(cart, cartService, async (latestCart) => {
+    if (!latestCart) {
+      throw new NotFoundError('Cart not found');
+    }
+    return cartService.removeItem(userId, productId);
+  });
+
+  const response: CartResponse = mapCartToResponse(savedCart);
 
   return successResponse(response, 200);
 }
@@ -169,6 +208,7 @@ function mapCartToResponse(cart: any): CartResponse {
     })),
     totalAmount: cart.totalAmount,
     currency: cart.currency,
+    itemCount: cart.items.length,
     updatedAt: cart.updatedAt,
   };
 }
