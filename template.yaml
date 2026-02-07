@@ -331,22 +331,99 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
-  # CloudFront Distribution for Frontend
-  FrontendDistribution:
+  # CloudFront Cache Policies
+  FrontendCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AWS::StackName}-FrontendCachePolicy
+        Comment: Cache policy for frontend assets - HTML short cache, JS/CSS long cache via S3 headers
+        DefaultTTL: 3600
+        MinTTL: 0
+        MaxTTL: 31536000
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+          CookiesConfig:
+            CookieBehavior: none
+
+  ProductImagesCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AWS::StackName}-ProductImagesCachePolicy
+        Comment: Cache policy for product images - 7 day default TTL
+        DefaultTTL: 604800
+        MinTTL: 86400
+        MaxTTL: 31536000
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+          CookiesConfig:
+            CookieBehavior: none
+
+  SecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub ${AWS::StackName}-SecurityHeaders
+        Comment: Security headers for frontend distribution
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            Override: true
+            AccessControlMaxAgeSec: 63072000
+            IncludeSubdomains: true
+            Preload: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            Override: true
+            FrameOption: DENY
+          XSSProtection:
+            Override: true
+            Protection: true
+            ModeBlock: true
+          ReferrerPolicy:
+            Override: true
+            ReferrerPolicy: strict-origin-when-cross-origin
+
+  # CloudFront Consolidated Distribution
+  ConsolidatedDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
+        Comment: !Sub OrderPOC Frontend and Product Images - ${Environment}
         Enabled: true
         DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
         Origins:
-          - DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            Id: S3-Frontend
+          - Id: FrontendS3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
             S3OriginConfig:
-              OriginAccessIdentity: ""
+              OriginAccessIdentity: ''
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+          - Id: ProductImagesS3Origin
+            DomainName: !GetAtt ProductImagesBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
             OriginAccessControlId: !GetAtt CloudFrontOAC.Id
         DefaultCacheBehavior:
-          TargetOriginId: S3-Frontend
+          TargetOriginId: FrontendS3Origin
           ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: !Ref FrontendCachePolicy
+          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
           AllowedMethods:
             - GET
             - HEAD
@@ -354,12 +431,18 @@ Resources:
           CachedMethods:
             - GET
             - HEAD
-          ForwardedValues:
-            QueryString: true
-            Cookies:
-              Forward: none
-          Compress: true
-          DefaultTTL: 86400
+        CacheBehaviors:
+          - PathPattern: /images/*
+            TargetOriginId: ProductImagesS3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            CachePolicyId: !Ref ProductImagesCachePolicy
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -369,48 +452,6 @@ Resources:
             ResponseCode: 200
             ResponsePagePath: /index.html
             ErrorCachingMinTTL: 300
-        PriceClass: PriceClass_100
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
-        Comment: !Sub OrderPOC Frontend - ${Environment}
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Application
-          Value: OrderPOC
-
-  # CloudFront Distribution for Product Images
-  ProductImagesDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        Origins:
-          - DomainName: !GetAtt ProductImagesBucket.RegionalDomainName
-            Id: S3-ProductImages
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
-        DefaultCacheBehavior:
-          TargetOriginId: S3-ProductImages
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods:
-            - GET
-            - HEAD
-            - OPTIONS
-          CachedMethods:
-            - GET
-            - HEAD
-          ForwardedValues:
-            QueryString: false
-            Cookies:
-              Forward: none
-          Compress: true
-          DefaultTTL: 604800
-        PriceClass: PriceClass_100
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
-        Comment: !Sub OrderPOC Product Images - ${Environment}
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -432,7 +473,7 @@ Resources:
             Resource: !Sub ${FrontendBucket.Arn}/*
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${ConsolidatedDistribution}
 
   ProductImagesBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -448,7 +489,7 @@ Resources:
             Resource: !Sub ${ProductImagesBucket.Arn}/*
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${ProductImagesDistribution}
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${ConsolidatedDistribution}
 
   # Lambda Functions
   AuthFunction:
@@ -540,7 +581,7 @@ Resources:
           PRODUCTS_TABLE: !Ref ProductsTable
           PRODUCTS_CATEGORY_INDEX: category-price-index
           PRODUCT_IMAGES_BUCKET: !Ref ProductImagesBucket
-          PRODUCT_IMAGES_CDN: !Sub https://${ProductImagesDistribution.DomainName}
+          PRODUCT_IMAGES_CDN: !Sub https://${ConsolidatedDistribution.DomainName}/images
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProductsTable
@@ -773,26 +814,22 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ProductImagesBucket
 
-  FrontendDistributionId:
-    Description: CloudFront Distribution ID for Frontend
-    Value: !Ref FrontendDistribution
+  ConsolidatedDistributionId:
+    Description: CloudFront Distribution ID (Frontend + Product Images)
+    Value: !Ref ConsolidatedDistribution
     Export:
-      Name: !Sub ${AWS::StackName}-FrontendDistributionId
+      Name: !Sub ${AWS::StackName}-ConsolidatedDistributionId
 
-  FrontendDistributionDomainName:
-    Description: CloudFront Distribution Domain Name for Frontend
-    Value: !Sub https://${FrontendDistribution.DomainName}
+  ConsolidatedDistributionDomainName:
+    Description: CloudFront Distribution Domain Name
+    Value: !Sub https://${ConsolidatedDistribution.DomainName}
     Export:
-      Name: !Sub ${AWS::StackName}-FrontendDistributionDomain
+      Name: !Sub ${AWS::StackName}-ConsolidatedDistributionDomain
 
-  ProductImagesDistributionId:
-    Description: CloudFront Distribution ID for Product Images
-    Value: !Ref ProductImagesDistribution
-    Export:
-      Name: !Sub ${AWS::StackName}-ProductImagesDistributionId
+  FrontendURL:
+    Description: Frontend application URL
+    Value: !Sub https://${ConsolidatedDistribution.DomainName}
 
-  ProductImagesDistributionDomainName:
-    Description: CloudFront Distribution Domain Name for Product Images
-    Value: !Sub https://${ProductImagesDistribution.DomainName}
-    Export:
-      Name: !Sub ${AWS::StackName}-ProductImagesDistributionDomain
+  ProductImagesURL:
+    Description: Product images base URL
+    Value: !Sub https://${ConsolidatedDistribution.DomainName}/images
