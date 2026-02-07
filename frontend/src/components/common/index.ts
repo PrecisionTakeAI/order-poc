@@ -26,6 +26,8 @@ export { ConfirmModal } from './ConfirmModal';
 export { Badge } from './Badge';
 export { EmptyState } from './EmptyState';
 export { StarRating } from './StarRating';
+export { QuantitySelector } from './QuantitySelector';
+export { ProductImageDisplay } from './ProductImageDisplay';
 
 // Navigation Components
 export { Pagination } from './Pagination';
