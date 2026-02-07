@@ -12,7 +12,7 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
         <LoadingSpinner size="lg" />
       </div>
     );

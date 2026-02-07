@@ -41,10 +41,7 @@ export const ForgotPasswordPage: React.FC = () => {
   };
 
   return (
-    <AuthLayout
-      title="Forgot Password"
-      subtitle="Enter your email to receive a reset code"
-    >
+    <AuthLayout title="Forgot Password" subtitle="Enter your email to receive a reset code">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
@@ -62,7 +59,7 @@ export const ForgotPasswordPage: React.FC = () => {
 
         <div className="text-center text-sm text-gray-600">
           Remember your password?{' '}
-          <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">
+          <Link to="/login" className="font-medium text-primary-600 hover:text-primary-700">
             Sign in
           </Link>
         </div>
