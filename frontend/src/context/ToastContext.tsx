@@ -1,4 +1,4 @@
-import React, { createContext, useState, useCallback } from 'react';
+import React, { createContext, useState, useCallback, useEffect } from 'react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -42,6 +42,20 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
       }, duration);
     }
   }, [removeToast]);
+
+  // Listen for api-error events from api.service.ts
+  useEffect(() => {
+    const handleApiError = (event: Event) => {
+      const customEvent = event as CustomEvent<{ message: string; statusCode: number }>;
+      showToast('error', customEvent.detail.message);
+    };
+
+    window.addEventListener('api-error', handleApiError);
+
+    return () => {
+      window.removeEventListener('api-error', handleApiError);
+    };
+  }, [showToast]);
 
   return (
     <ToastContext.Provider value={{ toasts, showToast, removeToast }}>
