@@ -83,12 +83,18 @@ export function validateRequestBody(
   }
 }
 
-export function isValidEmail(email: string): boolean {
+export function isValidEmail(email: unknown): boolean {
+  if (typeof email !== 'string') {
+    return false;
+  }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
-export function isValidUUID(uuid: string): boolean {
+export function isValidUUID(uuid: unknown): boolean {
+  if (typeof uuid !== 'string') {
+    return false;
+  }
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);

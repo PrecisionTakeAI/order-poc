@@ -569,6 +569,14 @@ Resources:
             RestApiId: !Ref OrderApi
             Path: /auth/profile
             Method: GET
+        Logout:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /auth/logout
+            Method: POST
+            Auth:
+              Authorizer: NONE
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
