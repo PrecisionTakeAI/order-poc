@@ -27,6 +27,7 @@ export const CheckoutPage: React.FC = () => {
     try {
       const orderRequest = {
         shippingAddress: {
+          fullName: data.fullName,
           street: data.street,
           city: data.city,
           state: data.state,
