@@ -6,6 +6,9 @@ import {
   ConfirmForgotPasswordCommand,
   AdminGetUserCommand,
   GlobalSignOutCommand,
+  AdminAddUserToGroupCommand,
+  AdminRemoveUserFromGroupCommand,
+  AdminListGroupsForUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 const client = new CognitoIdentityProviderClient({});
@@ -147,5 +150,35 @@ export class CognitoService {
     });
 
     await client.send(command);
+  }
+
+  async addUserToGroup(username: string, groupName: string): Promise<void> {
+    const command = new AdminAddUserToGroupCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+      GroupName: groupName,
+    });
+
+    await client.send(command);
+  }
+
+  async removeUserFromGroup(username: string, groupName: string): Promise<void> {
+    const command = new AdminRemoveUserFromGroupCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+      GroupName: groupName,
+    });
+
+    await client.send(command);
+  }
+
+  async listGroupsForUser(username: string): Promise<string[]> {
+    const command = new AdminListGroupsForUserCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+    });
+
+    const response = await client.send(command);
+    return response.Groups?.map((group) => group.GroupName || '') || [];
   }
 }

@@ -16,7 +16,10 @@
     "local:api": "sam local start-api",
     "seed:products": "ts-node scripts/seed-products.ts",
     "seed:products:dry-run": "ts-node scripts/seed-products.ts --dry-run",
-    "test:gsi": "ts-node scripts/test-gsi-queries.ts"
+    "test:gsi": "ts-node scripts/test-gsi-queries.ts",
+    "admin:add": "ts-node scripts/manage-admin.ts add",
+    "admin:remove": "ts-node scripts/manage-admin.ts remove",
+    "admin:list": "ts-node scripts/manage-admin.ts list"
   },
   "keywords": [
     "aws",
@@ -33,6 +36,7 @@
     "@types/aws-lambda": "^8.10.145",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.14.9",
+    "aws-jwt-verify": "^5.1.1",
     "aws-sdk-client-mock": "^4.1.0",
     "esbuild": "^0.27.3",
     "jest": "^30.2.0",
