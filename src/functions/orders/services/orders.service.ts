@@ -9,7 +9,8 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { OrderEntity, OrderItem, Address, CartEntity, ProductEntity } from '../../../shared/types';
-import { ValidationError, NotFoundError, ConflictError } from '../../../shared/utils/error.util';
+import { ValidationError, NotFoundError, ConflictError, ErrorDetail } from '../../../shared/utils/error.util';
+import { IdempotencyService } from './idempotency.service';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
@@ -17,7 +18,17 @@ const TABLE_NAME = process.env.ORDERS_TABLE || '';
 const CARTS_TABLE = process.env.CARTS_TABLE || '';
 const PRODUCTS_TABLE = process.env.PRODUCTS_TABLE || '';
 
+export interface CreateOrderResult {
+  order: OrderEntity;
+  isIdempotent: boolean;
+}
+
 export class OrdersService {
+  private idempotencyService: IdempotencyService;
+
+  constructor() {
+    this.idempotencyService = new IdempotencyService();
+  }
   /**
    * Create an order from the user's cart using DynamoDB transactions
    * This ensures atomicity across cart deletion, stock updates, and order creation
@@ -25,8 +36,24 @@ export class OrdersService {
   async createOrderFromCart(
     userId: string,
     shippingAddress: Address,
-    paymentMethod: string
-  ): Promise<OrderEntity> {
+    paymentMethod: string,
+    idempotencyKey?: string
+  ): Promise<CreateOrderResult> {
+    // Check idempotency if key is provided
+    if (idempotencyKey) {
+      const existingOrder = await this.idempotencyService.checkIdempotency(
+        userId,
+        idempotencyKey
+      );
+
+      if (existingOrder) {
+        console.log(`Idempotent request detected. Returning existing order: ${existingOrder.orderId}`);
+        return {
+          order: existingOrder,
+          isIdempotent: true,
+        };
+      }
+    }
     // Step 1: Retrieve the cart
     const cartResponse = await docClient.send(
       new GetCommand({
@@ -48,19 +75,64 @@ export class OrdersService {
     const productIds = cart.items.map((item) => item.productId);
     const products = await this.fetchProducts(productIds);
 
-    // Validate all products exist
-    for (const item of cart.items) {
+    // Validate all products exist and collect all errors
+    const validationErrors: ErrorDetail[] = [];
+
+    for (let i = 0; i < cart.items.length; i++) {
+      const item = cart.items[i];
       const product = products.get(item.productId);
+
       if (!product) {
-        throw new NotFoundError(`Product ${item.productId} not found`);
+        validationErrors.push({
+          field: `items[${i}]`,
+          productId: item.productId,
+          message: `Product not found`,
+          code: 'NOT_FOUND',
+        });
+        continue;
       }
+
       if (product.status !== 'active') {
-        throw new ValidationError(`Product ${product.name} is not available (status: ${product.status})`);
+        validationErrors.push({
+          field: `items[${i}]`,
+          productId: product.productId,
+          productName: product.name,
+          message: `Product is not available (status: ${product.status})`,
+          code: 'PRODUCT_UNAVAILABLE',
+        });
       }
+
       if (product.stock < item.quantity) {
-        throw new ValidationError(
-          `Insufficient stock for product ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`
-        );
+        validationErrors.push({
+          field: `items[${i}]`,
+          productId: product.productId,
+          productName: product.name,
+          message: `Insufficient stock. Available: ${product.stock}, Requested: ${item.quantity}`,
+          code: 'INSUFFICIENT_STOCK',
+          available: product.stock,
+          requested: item.quantity,
+        });
+      }
+    }
+
+    // Throw if any validation errors exist
+    if (validationErrors.length > 0) {
+      // Determine the most appropriate error type
+      const hasStockErrors = validationErrors.some(e => e.code === 'INSUFFICIENT_STOCK');
+      const hasNotFoundErrors = validationErrors.some(e => e.code === 'NOT_FOUND');
+
+      if (hasStockErrors) {
+        throw new ConflictError('Insufficient stock for one or more items', {
+          errors: validationErrors,
+        });
+      } else if (hasNotFoundErrors) {
+        throw new NotFoundError('One or more products not found', {
+          errors: validationErrors,
+        });
+      } else {
+        throw new ValidationError('Product validation failed', {
+          errors: validationErrors,
+        });
       }
     }
 
@@ -100,7 +172,7 @@ export class OrdersService {
       updatedAt: now,
     };
 
-    // Step 4: Execute transaction - create order, decrement stock, delete cart
+    // Step 4: Execute transaction - create order, decrement stock, delete cart, add idempotency record
     const transactItems = [
       // Create order
       {
@@ -142,6 +214,13 @@ export class OrdersService {
       },
     ];
 
+    // Add idempotency record if key is provided
+    if (idempotencyKey) {
+      transactItems.push(
+        this.idempotencyService.createIdempotencyRecord(userId, idempotencyKey, orderId)
+      );
+    }
+
     try {
       await docClient.send(
         new TransactWriteCommand({
@@ -156,20 +235,47 @@ export class OrdersService {
         const cancellationReasons = error.CancellationReasons || [];
         console.error('Transaction cancellation reasons:', cancellationReasons);
 
+        // Determine the expected position of cart deletion
+        const cartDeleteIndex = orderItems.length + 1; // Order Put + N product updates + Cart Delete
+        const idempotencyIndex = idempotencyKey ? transactItems.length - 1 : -1;
+
         // Check for stock or product status issues
         for (let i = 0; i < cancellationReasons.length; i++) {
           const reason = cancellationReasons[i];
           if (reason.Code === 'ConditionalCheckFailed') {
-            // Stock update failed (index 1 to N-1 are product updates)
-            if (i > 0 && i < transactItems.length - 1) {
+            // Idempotency key already exists - this is a race condition, retry the check
+            if (idempotencyKey && i === idempotencyIndex) {
+              const existingOrder = await this.idempotencyService.checkIdempotency(
+                userId,
+                idempotencyKey
+              );
+              if (existingOrder) {
+                console.log(`Race condition detected. Returning existing order: ${existingOrder.orderId}`);
+                return {
+                  order: existingOrder,
+                  isIdempotent: true,
+                };
+              }
+              throw new ConflictError('Idempotency key conflict. Please try again.');
+            }
+            // Stock update failed (index 1 to N are product updates)
+            if (i > 0 && i <= orderItems.length) {
               const itemIndex = i - 1;
               const item = orderItems[itemIndex];
+              const stockErrors: ErrorDetail[] = [{
+                field: `items[${itemIndex}]`,
+                productId: item.productId,
+                productName: item.productName,
+                message: `Product is no longer available or has insufficient stock`,
+                code: 'INSUFFICIENT_STOCK',
+              }];
               throw new ConflictError(
-                `Product ${item.productName} is no longer available or has insufficient stock`
+                'Insufficient stock for one or more items',
+                { errors: stockErrors }
               );
             }
             // Cart deletion failed
-            if (i === transactItems.length - 1) {
+            if (i === cartDeleteIndex) {
               throw new ConflictError('Cart was modified or deleted. Please try again.');
             }
           }
@@ -181,7 +287,10 @@ export class OrdersService {
       throw error;
     }
 
-    return order;
+    return {
+      order,
+      isIdempotent: false,
+    };
   }
 
   /**

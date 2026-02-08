@@ -1,3 +1,17 @@
+export interface ErrorDetail {
+  field?: string;
+  message: string;
+  code: string;
+  productId?: string;
+  productName?: string;
+  available?: number;
+  requested?: number;
+}
+
+export interface StructuredErrorDetails {
+  errors: ErrorDetail[];
+}
+
 export class AppError extends Error {
   constructor(
     message: string,

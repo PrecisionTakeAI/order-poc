@@ -2,6 +2,7 @@ import { APIGatewayProxyResult } from 'aws-lambda';
 import { successResponse, errorResponse } from '../../shared/utils/response.util';
 import { ValidationError, NotFoundError, ConflictError } from '../../shared/utils/error.util';
 import { validateRequestBody } from '../../shared/utils/validation.util';
+import { validateAddress } from '../../shared/utils/address-validation.util';
 import { AuthorizedAPIGatewayProxyEvent } from '../../shared/types';
 import { OrdersService } from './services/orders.service';
 import {
@@ -11,6 +12,7 @@ import {
   OrderListResponse,
   OrderItemResponse,
 } from './types';
+import { validate as uuidValidate } from 'uuid';
 
 const ordersService = new OrdersService();
 
@@ -141,18 +143,43 @@ async function handleCreateOrder(
     { field: 'paymentMethod', required: true, type: 'string' },
   ]);
 
-  const { shippingAddress, paymentMethod } = body;
+  const { shippingAddress, paymentMethod, idempotencyKey } = body;
+
+  // Validate address fields
+  const addressErrors = validateAddress(shippingAddress);
+  if (addressErrors.length > 0) {
+    throw new ValidationError('Validation failed', {
+      errors: addressErrors,
+    });
+  }
+
+  // Validate idempotency key if provided (optional for backward compatibility)
+  if (idempotencyKey !== undefined && idempotencyKey !== null) {
+    if (typeof idempotencyKey !== 'string' || !uuidValidate(idempotencyKey)) {
+      throw new ValidationError('Validation failed', {
+        errors: [
+          {
+            field: 'idempotencyKey',
+            message: 'Idempotency key must be a valid UUID',
+            code: 'INVALID_FORMAT',
+          },
+        ],
+      });
+    }
+  }
 
   // Create order from cart using DynamoDB transaction
-  const order = await ordersService.createOrderFromCart(
+  const result = await ordersService.createOrderFromCart(
     userId,
     shippingAddress,
-    paymentMethod
+    paymentMethod,
+    idempotencyKey
   );
 
-  const response: OrderResponse = mapOrderToResponse(order);
+  const response: OrderResponse = mapOrderToResponse(result.order);
 
-  return successResponse(response, 201);
+  // Return 200 for idempotent requests, 201 for new orders
+  return successResponse(response, result.isIdempotent ? 200 : 201);
 }
 
 async function handleUpdateOrderStatus(
