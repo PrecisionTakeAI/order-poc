@@ -57,6 +57,7 @@ Resources:
         AllowOrigin: "'*'"
         MaxAge: "'600'"
       Auth:
+        AddDefaultAuthorizerToCorsPreflight: false
         DefaultAuthorizer: CognitoAuthorizer
         Authorizers:
           CognitoAuthorizer:
