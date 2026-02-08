@@ -54,3 +54,21 @@ export interface GetUserOrdersResult {
   orders: any[];
   lastEvaluatedKey?: Record<string, unknown>;
 }
+
+export interface AdminOrderResponse extends OrderResponse {
+  customerName?: string;
+  customerEmail?: string;
+  orderDate?: string;
+}
+
+export interface AdminOrderListResponse {
+  orders: AdminOrderResponse[];
+  count: number;
+  hasMore: boolean;
+  lastKey?: string;
+  statistics: {
+    totalOrders: number;
+    totalRevenue: number;
+    ordersByStatus: Record<string, number>;
+  };
+}

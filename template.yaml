@@ -756,6 +756,7 @@ Resources:
           ORDERS_USER_DATE_INDEX: userId-orderDate-index
           CARTS_TABLE: !Ref CartsTable
           PRODUCTS_TABLE: !Ref ProductsTable
+          USERS_TABLE: !Ref UsersTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref OrdersTable
@@ -763,6 +764,8 @@ Resources:
             TableName: !Ref CartsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref ProductsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
       Events:
         CreateOrder:
           Type: Api
@@ -788,6 +791,22 @@ Resources:
             RestApiId: !Ref OrderApi
             Path: /orders/{id}/status
             Method: PUT
+        AdminListOrders:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /admin/orders
+            Method: GET
+            Auth:
+              Authorizer: AdminAuthorizer
+        AdminUpdateOrderStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /admin/orders/{id}/status
+            Method: PUT
+            Auth:
+              Authorizer: AdminAuthorizer
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

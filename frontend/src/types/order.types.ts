@@ -3,23 +3,28 @@ import type { Product } from './product.types';
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 export interface OrderItem {
+  itemId?: string;
   productId: string;
-  name: string;
+  name?: string; // For backward compatibility
+  productName?: string; // From API response
   quantity: number;
   price: number;
   subtotal: number;
+  currentImageUrl?: string;
   product?: Product;
 }
 
 export interface ShippingAddress {
   fullName: string;
-  addressLine1: string;
+  addressLine1?: string;
+  street?: string; // Backend uses 'street' not 'addressLine1'
   addressLine2?: string;
   city: string;
   state: string;
   postalCode: string;
   country: string;
-  phoneNumber: string;
+  phoneNumber?: string;
+  phone?: string; // Allow both field names
 }
 
 export interface ShippingFormData {
@@ -74,4 +79,44 @@ export interface OrderListResponse {
   page?: number;
   limit?: number;
   totalPages?: number;
+}
+
+// Admin-specific types
+export interface AdminOrder {
+  orderId: string;
+  userId: string;
+  customerName?: string;
+  customerEmail?: string;
+  orderDate?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  currency: string;
+  status: OrderStatus;
+  paymentStatus?: string;
+  shippingAddress?: ShippingAddress;
+  paymentMethod?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderStatistics {
+  totalOrders: number;
+  totalRevenue: number;
+  ordersByStatus: Record<string, number>;
+}
+
+export interface AdminOrderListResponse {
+  orders: AdminOrder[];
+  count: number;
+  hasMore: boolean;
+  lastKey?: string;
+  statistics: OrderStatistics;
+}
+
+export interface AdminOrderFilters {
+  status?: OrderStatus;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  lastKey?: string;
 }
