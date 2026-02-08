@@ -123,7 +123,7 @@ async function handleLogin(
   const { email, password } = body;
 
   const authResult = await cognitoService.signIn(email, password);
-  const cognitoUser = await cognitoService.getUserBySub(authResult.accessToken);
+  const cognitoUser = await cognitoService.getUserBySub(email);
 
   const response: LoginResponse = {
     accessToken: authResult.accessToken,
