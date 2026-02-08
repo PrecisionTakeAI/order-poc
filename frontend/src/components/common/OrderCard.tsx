@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardBody } from './Card';
 import { Badge } from './Badge';
 
-type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 interface OrderCardProps {
   orderId: string;
@@ -27,11 +27,29 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     OrderStatus,
     { variant: 'secondary' | 'info' | 'warning' | 'success' | 'error'; label: string }
   > = {
-    pending: { variant: 'secondary', label: 'Pending' },
+    pending: { variant: 'warning', label: 'Pending' },
+    confirmed: { variant: 'info', label: 'Confirmed' },
     processing: { variant: 'info', label: 'Processing' },
-    shipped: { variant: 'warning', label: 'Shipped' },
+    shipped: { variant: 'secondary', label: 'Shipped' },
     delivered: { variant: 'success', label: 'Delivered' },
     cancelled: { variant: 'error', label: 'Cancelled' },
+  };
+
+  // Truncate order ID to 8 characters and uppercase
+  const displayOrderId = orderId.substring(0, 8).toUpperCase();
+
+  // Format date nicely
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return dateString;
+    }
   };
 
   const handleClick = () => {
@@ -48,8 +66,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-base md:text-lg font-semibold text-gray-900">Order #{orderId}</h3>
-            <p className="text-sm text-gray-600">{date}</p>
+            <h3 className="text-base md:text-lg font-semibold text-gray-900">Order #{displayOrderId}</h3>
+            <p className="text-sm text-gray-600">{formatDate(date)}</p>
           </div>
           <Badge variant={statusConfig[status].variant} size="md">
             {statusConfig[status].label}

@@ -36,6 +36,7 @@ export { Pagination } from './Pagination';
 export { ProductCard } from './ProductCard';
 export { ProductCardSkeleton } from './ProductCardSkeleton';
 export { OrderCard } from './OrderCard';
+export { OrderCardSkeleton } from './OrderCardSkeleton';
 
 // Route Components
 export { PrivateRoute } from './PrivateRoute';

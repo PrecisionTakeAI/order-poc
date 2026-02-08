@@ -7,11 +7,11 @@ export interface UseOrdersResult {
   orders: Order[];
   loading: boolean;
   error: string | null;
-  total: number;
-  page: number;
-  totalPages: number;
+  count: number;
+  hasMore: boolean;
+  lastKey?: string;
   createLoading: boolean;
-  fetchOrders: (page?: number, limit?: number) => Promise<void>;
+  fetchOrders: (limit?: number, status?: string, lastKey?: string, append?: boolean) => Promise<void>;
   createOrder: (request: CreateOrderRequest) => Promise<Order | null>;
 }
 
@@ -19,26 +19,31 @@ export function useOrders(): UseOrdersResult {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
+  const [count, setCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [lastKey, setLastKey] = useState<string | undefined>(undefined);
   const [createLoading, setCreateLoading] = useState(false);
 
   const { showToast } = useToast();
 
   const fetchOrders = useCallback(
-    async (page: number = 1, limit: number = 10) => {
+    async (limit: number = 10, status?: string, lastKeyParam?: string, append: boolean = false) => {
       try {
         setLoading(true);
         setError(null);
 
-        const response = await orderService.getOrders(page, limit);
+        const response = await orderService.getOrders(limit, status, lastKeyParam);
         const data = response.data as OrderListResponse;
 
-        setOrders(data.orders);
-        setTotal(data.total);
-        setPage(data.page);
-        setTotalPages(data.totalPages);
+        if (append) {
+          setOrders((prev) => [...prev, ...data.orders]);
+        } else {
+          setOrders(data.orders);
+        }
+
+        setCount(data.count);
+        setHasMore(data.hasMore);
+        setLastKey(data.lastKey);
       } catch (err) {
         const errorMessage = orderService.handleError(err);
         setError(errorMessage);
@@ -75,9 +80,9 @@ export function useOrders(): UseOrdersResult {
     orders,
     loading,
     error,
-    total,
-    page,
-    totalPages,
+    count,
+    hasMore,
+    lastKey,
     createLoading,
     fetchOrders,
     createOrder,
