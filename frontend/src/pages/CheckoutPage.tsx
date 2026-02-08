@@ -42,7 +42,7 @@ export const CheckoutPage: React.FC = () => {
       await clearCartAfterOrder();
 
       showToast('success', 'Order placed successfully!');
-      navigate(`/orders/${response.data.orderId}`);
+      navigate(`/orders/${response.data.orderId}/confirmation`);
     } catch (err) {
       const errorMessage = orderService.handleError(err);
       setError(errorMessage);
