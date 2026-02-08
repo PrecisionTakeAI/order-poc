@@ -45,6 +45,11 @@ const OrdersPage = React.lazy(() =>
 const OrderDetailPage = React.lazy(() =>
   import('../pages/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage }))
 );
+const OrderConfirmationPage = React.lazy(() =>
+  import('../pages/OrderConfirmationPage').then((m) => ({
+    default: m.OrderConfirmationPage,
+  }))
+);
 
 // Admin pages
 const AdminDashboardPage = React.lazy(() =>
@@ -88,6 +93,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/orders/:orderId/confirmation" element={<OrderConfirmationPage />} />
           <Route path="/orders/:orderId" element={<OrderDetailPage />} />
 
           {/* Admin routes */}
