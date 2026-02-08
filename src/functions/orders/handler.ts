@@ -5,17 +5,21 @@ import { validateRequestBody } from '../../shared/utils/validation.util';
 import { validateAddress } from '../../shared/utils/address-validation.util';
 import { AuthorizedAPIGatewayProxyEvent } from '../../shared/types';
 import { OrdersService } from './services/orders.service';
+import { AdminOrdersService } from './services/admin-orders.service';
 import {
   CreateOrderRequest,
   UpdateOrderStatusRequest,
   OrderResponse,
   OrderListResponse,
   OrderItemResponse,
+  AdminOrderResponse,
+  AdminOrderListResponse,
 } from './types';
 import { validate as uuidValidate } from 'uuid';
 import { encodePaginationToken, decodePaginationToken } from '../../shared/utils/pagination.util';
 
 const ordersService = new OrdersService();
+const adminOrdersService = new AdminOrdersService();
 
 /**
  * Check if user has admin privileges
@@ -55,6 +59,17 @@ export const handler = async (
 
     if (method === 'OPTIONS') {
       return successResponse({}, 200);
+    }
+
+    // Admin routes - must be checked before user routes to avoid path conflicts
+    if (path === '/admin/orders' && method === 'GET') {
+      return await handleAdminListOrders(event);
+    }
+
+    const adminStatusMatch = path.match(/^\/admin\/orders\/([^/]+)\/status$/);
+    if (adminStatusMatch && method === 'PUT') {
+      const orderId = adminStatusMatch[1];
+      return await handleAdminUpdateStatus(orderId, event);
     }
 
     if (path === '/orders' && method === 'GET') {
@@ -342,6 +357,184 @@ function mapOrderToResponse(order: any): OrderResponse {
   return {
     orderId: order.orderId,
     userId: order.userId,
+    items: order.items.map((item: any): OrderItemResponse => ({
+      itemId: item.itemId,
+      productId: item.productId,
+      productName: item.productName,
+      price: item.price,
+      quantity: item.quantity,
+      subtotal: item.subtotal,
+      currentImageUrl: item.currentImageUrl,
+    })),
+    totalAmount: order.totalAmount,
+    currency: order.currency,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    shippingAddress: order.shippingAddress,
+    paymentMethod: order.paymentMethod,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+  };
+}
+
+/**
+ * Admin handler - List all orders with filtering and pagination
+ */
+async function handleAdminListOrders(
+  event: AuthorizedAPIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> {
+  // Check admin authorization
+  if (!isAdmin(event)) {
+    return errorResponse('Forbidden: Admin access required', 403, 'FORBIDDEN');
+  }
+
+  // Parse and validate query parameters
+  const queryParams = event.queryStringParameters || {};
+
+  // Parse limit (1-100, default 50)
+  const DEFAULT_LIMIT = 50;
+  const MAX_LIMIT = 100;
+  const MIN_LIMIT = 1;
+
+  let limit = DEFAULT_LIMIT;
+  if (queryParams.limit) {
+    const parsed = parseInt(queryParams.limit, 10);
+    if (isNaN(parsed) || parsed < MIN_LIMIT || parsed > MAX_LIMIT) {
+      throw new ValidationError(
+        `Invalid limit. Must be between ${MIN_LIMIT} and ${MAX_LIMIT}`
+      );
+    }
+    limit = parsed;
+  }
+
+  // Parse pagination token
+  let lastKey: Record<string, unknown> | undefined;
+  if (queryParams.lastKey) {
+    const decoded = decodePaginationToken(queryParams.lastKey);
+    if (!decoded) {
+      throw new ValidationError('Invalid pagination token');
+    }
+    lastKey = decoded;
+  }
+
+  // Validate status filter
+  const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
+  let status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | undefined;
+  if (queryParams.status) {
+    if (!validStatuses.includes(queryParams.status as any)) {
+      throw new ValidationError(
+        `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      );
+    }
+    status = queryParams.status as 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  }
+
+  // Validate date range
+  let startDate: string | undefined;
+  let endDate: string | undefined;
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+  if (queryParams.startDate) {
+    if (!dateRegex.test(queryParams.startDate)) {
+      throw new ValidationError('Invalid startDate format. Use YYYY-MM-DD');
+    }
+    startDate = queryParams.startDate;
+  }
+
+  if (queryParams.endDate) {
+    if (!dateRegex.test(queryParams.endDate)) {
+      throw new ValidationError('Invalid endDate format. Use YYYY-MM-DD');
+    }
+    endDate = queryParams.endDate;
+  }
+
+  // Validate date range logic
+  if (startDate && endDate && startDate > endDate) {
+    throw new ValidationError('startDate must be before or equal to endDate');
+  }
+
+  // Fetch all orders with filters
+  const result = await adminOrdersService.getAllOrders({
+    limit,
+    lastKey,
+    status,
+    startDate,
+    endDate,
+  });
+
+  // Enrich with customer info and product images
+  const enrichedWithCustomers = await adminOrdersService.enrichOrdersWithCustomerInfo(result.orders);
+  const enrichedWithImages = await ordersService.enrichOrdersWithProductImages(enrichedWithCustomers);
+
+  // Calculate statistics
+  const statistics = adminOrdersService.calculateStatistics(result.orders);
+
+  // Encode pagination token
+  const lastKeyEncoded = result.lastEvaluatedKey
+    ? encodePaginationToken(result.lastEvaluatedKey)
+    : undefined;
+
+  const response: AdminOrderListResponse = {
+    orders: enrichedWithImages.map(mapAdminOrderToResponse),
+    count: enrichedWithImages.length,
+    hasMore: !!result.lastEvaluatedKey,
+    lastKey: lastKeyEncoded,
+    statistics,
+  };
+
+  return successResponse(response, 200);
+}
+
+/**
+ * Admin handler - Update order status
+ */
+async function handleAdminUpdateStatus(
+  orderId: string,
+  event: AuthorizedAPIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> {
+  // Check admin authorization
+  if (!isAdmin(event)) {
+    return errorResponse('Forbidden: Admin access required', 403, 'FORBIDDEN');
+  }
+
+  const body = JSON.parse(event.body || '{}') as UpdateOrderStatusRequest;
+
+  validateRequestBody(body, [{ field: 'status', required: true, type: 'string' }]);
+
+  const { status } = body;
+
+  const validStatuses = [
+    'pending',
+    'confirmed',
+    'processing',
+    'shipped',
+    'delivered',
+    'cancelled',
+  ];
+
+  if (!validStatuses.includes(status)) {
+    throw new ValidationError('Invalid status value');
+  }
+
+  // Update order status (service handles validation and lookup)
+  const order = await adminOrdersService.updateOrderStatusAdmin(orderId, status);
+
+  // Enrich with product images
+  const enrichedOrders = await ordersService.enrichOrdersWithProductImages([order]);
+  const enrichedOrder = enrichedOrders[0];
+
+  const response: OrderResponse = mapOrderToResponse(enrichedOrder);
+
+  return successResponse(response, 200);
+}
+
+function mapAdminOrderToResponse(order: any): AdminOrderResponse {
+  return {
+    orderId: order.orderId,
+    userId: order.userId,
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    orderDate: order.orderDate,
     items: order.items.map((item: any): OrderItemResponse => ({
       itemId: item.itemId,
       productId: item.productId,

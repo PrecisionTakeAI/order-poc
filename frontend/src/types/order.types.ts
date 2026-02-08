@@ -75,3 +75,43 @@ export interface OrderListResponse {
   limit?: number;
   totalPages?: number;
 }
+
+// Admin-specific types
+export interface AdminOrder {
+  orderId: string;
+  userId: string;
+  customerName?: string;
+  customerEmail?: string;
+  orderDate?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  currency: string;
+  status: OrderStatus;
+  paymentStatus?: string;
+  shippingAddress?: ShippingAddress;
+  paymentMethod?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderStatistics {
+  totalOrders: number;
+  totalRevenue: number;
+  ordersByStatus: Record<string, number>;
+}
+
+export interface AdminOrderListResponse {
+  orders: AdminOrder[];
+  count: number;
+  hasMore: boolean;
+  lastKey?: string;
+  statistics: OrderStatistics;
+}
+
+export interface AdminOrderFilters {
+  status?: OrderStatus;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  lastKey?: string;
+}

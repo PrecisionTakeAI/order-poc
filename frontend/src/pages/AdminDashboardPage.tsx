@@ -44,7 +44,7 @@ export const AdminDashboardPage: React.FC = () => {
           />
         </svg>
       ),
-      onClick: () => navigate('/orders'),
+      onClick: () => navigate('/admin/orders'),
     },
     {
       title: 'User Management',

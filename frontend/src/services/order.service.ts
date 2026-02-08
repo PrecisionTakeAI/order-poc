@@ -5,6 +5,8 @@ import type {
   OrderListResponse,
   CreateOrderRequest,
   UpdateOrderStatusRequest,
+  AdminOrderListResponse,
+  AdminOrderFilters,
 } from '../types/order.types';
 
 class OrderService {
@@ -46,6 +48,48 @@ class OrderService {
     request: UpdateOrderStatusRequest
   ): Promise<ApiResponse<Order>> {
     const response = await this.api.put<ApiResponse<Order>>(`/orders/${orderId}/status`, request);
+    return response.data;
+  }
+
+  // Admin methods
+  async getAdminOrders(filters?: AdminOrderFilters): Promise<ApiResponse<AdminOrderListResponse>> {
+    const params = new URLSearchParams();
+
+    if (filters?.limit !== undefined) {
+      params.append('limit', filters.limit.toString());
+    }
+
+    if (filters?.status) {
+      params.append('status', filters.status);
+    }
+
+    if (filters?.startDate) {
+      params.append('startDate', filters.startDate);
+    }
+
+    if (filters?.endDate) {
+      params.append('endDate', filters.endDate);
+    }
+
+    if (filters?.lastKey) {
+      params.append('lastKey', filters.lastKey);
+    }
+
+    const queryString = params.toString();
+    const url = queryString ? `/admin/orders?${queryString}` : '/admin/orders';
+
+    const response = await this.api.get<ApiResponse<AdminOrderListResponse>>(url);
+    return response.data;
+  }
+
+  async updateOrderStatusAdmin(
+    orderId: string,
+    status: string
+  ): Promise<ApiResponse<Order>> {
+    const response = await this.api.put<ApiResponse<Order>>(
+      `/admin/orders/${orderId}/status`,
+      { status }
+    );
     return response.data;
   }
 
