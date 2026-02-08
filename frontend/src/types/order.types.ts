@@ -22,6 +22,15 @@ export interface ShippingAddress {
   phoneNumber: string;
 }
 
+export interface ShippingFormData {
+  fullName: string;
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
 export interface Order {
   orderId: string;
   userId: string;
@@ -40,11 +49,14 @@ export interface Order {
 }
 
 export interface CreateOrderRequest {
-  items: Array<{
-    productId: string;
-    quantity: number;
-  }>;
-  shippingAddress: ShippingAddress;
+  shippingAddress: {
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
+  paymentMethod: string;
 }
 
 export interface UpdateOrderStatusRequest {

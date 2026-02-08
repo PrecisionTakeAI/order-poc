@@ -45,3 +45,12 @@ export const resetPasswordSchema = z
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   });
+
+export const shippingFormSchema = z.object({
+  fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+  street: z.string().min(5, 'Street address must be at least 5 characters'),
+  city: z.string().min(2, 'City must be at least 2 characters'),
+  state: z.string().min(2, 'State/Province must be at least 2 characters'),
+  postalCode: z.string().min(3, 'Postal code must be at least 3 characters'),
+  country: z.string().min(2, 'Country must be at least 2 characters'),
+});
