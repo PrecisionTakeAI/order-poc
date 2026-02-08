@@ -16,7 +16,10 @@
     "local:api": "sam local start-api",
     "seed:products": "ts-node scripts/seed-products.ts",
     "seed:products:dry-run": "ts-node scripts/seed-products.ts --dry-run",
-    "test:gsi": "ts-node scripts/test-gsi-queries.ts"
+    "test:gsi": "ts-node scripts/test-gsi-queries.ts",
+    "admin:add": "ts-node scripts/manage-admin.ts add",
+    "admin:remove": "ts-node scripts/manage-admin.ts remove",
+    "admin:list": "ts-node scripts/manage-admin.ts list"
   },
   "keywords": [
     "aws",
