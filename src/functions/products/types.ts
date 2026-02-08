@@ -77,3 +77,14 @@ export interface ProductListResult {
   products: import('../../shared/types').ProductEntity[];
   lastEvaluatedKey: Record<string, unknown> | undefined;
 }
+
+export interface GenerateUploadUrlRequest {
+  fileName: string;
+  contentType: string;
+}
+
+export interface GenerateUploadUrlResponse {
+  uploadUrl: string;
+  cdnUrl: string;
+  key: string;
+}

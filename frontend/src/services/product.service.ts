@@ -41,7 +41,11 @@ class ProductService {
   }
 
   async createProduct(data: CreateProductRequest): Promise<ApiResponse<Product>> {
-    const response = await this.api.post<ApiResponse<Product>>('/products', data);
+    const requestData = {
+      ...data,
+      currency: 'USD',
+    };
+    const response = await this.api.post<ApiResponse<Product>>('/products', requestData);
     return response.data;
   }
 
@@ -56,6 +60,26 @@ class ProductService {
   async deleteProduct(productId: string): Promise<ApiResponse<void>> {
     const response = await this.api.delete<ApiResponse<void>>(`/products/${productId}`);
     return response.data;
+  }
+
+  async getUploadUrl(
+    fileName: string,
+    contentType: string
+  ): Promise<ApiResponse<{ uploadUrl: string; cdnUrl: string; key: string }>> {
+    const response = await this.api.post<
+      ApiResponse<{ uploadUrl: string; cdnUrl: string; key: string }>
+    >('/products/upload-url', { fileName, contentType });
+    return response.data;
+  }
+
+  async uploadToS3(uploadUrl: string, file: File): Promise<void> {
+    await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type,
+      },
+    });
   }
 
   handleError(error: unknown): string {

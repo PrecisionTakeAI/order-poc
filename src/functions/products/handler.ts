@@ -7,6 +7,8 @@ import { encodePaginationToken, parsePaginationParams } from '../../shared/utils
 import { PRODUCT_CATEGORIES } from '../../shared/types/product-categories';
 import { ProductEntity } from '../../shared/types';
 import { ProductsService } from './services/products.service';
+import { S3Service } from './services/s3.service';
+import { OrdersService } from './services/orders.service';
 import {
   CreateProductRequest,
   UpdateProductRequest,
@@ -15,9 +17,13 @@ import {
   SearchProductsResponse,
   CategoryProductsResponse,
   SortBy,
+  GenerateUploadUrlRequest,
+  GenerateUploadUrlResponse,
 } from './types';
 
 const productsService = new ProductsService();
+const s3Service = new S3Service();
+const ordersService = new OrdersService();
 
 const VALID_SORT_VALUES: SortBy[] = ['price-asc', 'price-desc', 'newest'];
 
@@ -67,6 +73,11 @@ export const handler = async (
     if (categoryMatch && method === 'GET') {
       const category = decodeURIComponent(categoryMatch[1]);
       return await handleGetProductsByCategory(category, event);
+    }
+
+    // Upload URL route - MUST match before /products to avoid conflict
+    if (path === '/products/upload-url' && method === 'POST') {
+      return await handleGenerateUploadUrl(event);
     }
 
     if (path === '/products' && method === 'GET') {
@@ -316,6 +327,39 @@ async function handleUpdateProduct(
   return successResponse(response, 200);
 }
 
+async function handleGenerateUploadUrl(
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> {
+  // Check admin authorization
+  if (!isAdmin(event)) {
+    return errorResponse('Forbidden: Admin access required', 403, 'FORBIDDEN');
+  }
+
+  const body = JSON.parse(event.body || '{}') as GenerateUploadUrlRequest;
+
+  validateRequestBody(body, [
+    { field: 'fileName', required: true, type: 'string', minLength: 1 },
+    { field: 'contentType', required: true, type: 'string', minLength: 1 },
+  ]);
+
+  const { fileName, contentType } = body;
+
+  // Validate content type is an image
+  if (!contentType.startsWith('image/')) {
+    throw new ValidationError('Only image files are allowed');
+  }
+
+  const result = await s3Service.generateUploadUrl(fileName, contentType);
+
+  const response: GenerateUploadUrlResponse = {
+    uploadUrl: result.uploadUrl,
+    cdnUrl: result.cdnUrl,
+    key: result.key,
+  };
+
+  return successResponse(response, 200);
+}
+
 async function handleDeleteProduct(
   productId: string,
   event: APIGatewayProxyEvent
@@ -328,6 +372,16 @@ async function handleDeleteProduct(
   const product = await productsService.getProductById(productId);
   if (!product) {
     throw new NotFoundError('Product not found');
+  }
+
+  // Check if product is in any pending or processing orders
+  const isInPendingOrders = await ordersService.isProductInPendingOrders(productId);
+  if (isInPendingOrders) {
+    return errorResponse(
+      'Cannot delete product that is in pending or processing orders',
+      409,
+      'PRODUCT_IN_PENDING_ORDERS'
+    );
   }
 
   await productsService.deleteProduct(productId);

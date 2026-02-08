@@ -57,6 +57,11 @@ const AdminDashboardPage = React.lazy(() =>
     default: m.AdminDashboardPage,
   }))
 );
+const AdminProductsPage = React.lazy(() =>
+  import('../pages/AdminProductsPage').then((m) => ({
+    default: m.AdminProductsPage,
+  }))
+);
 
 // Error/utility pages
 const AccessDeniedPage = React.lazy(() =>
@@ -102,6 +107,14 @@ export const AppRoutes: React.FC = () => {
             element={
               <AdminRoute>
                 <AdminDashboardPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/products"
+            element={
+              <AdminRoute>
+                <AdminProductsPage />
               </AdminRoute>
             }
           />

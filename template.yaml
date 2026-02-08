@@ -610,9 +610,12 @@ Resources:
           PRODUCTS_CATEGORY_INDEX: category-price-index
           PRODUCT_IMAGES_BUCKET: !Ref ProductImagesBucket
           PRODUCT_IMAGES_CDN: !Sub https://${ConsolidatedDistribution.DomainName}/images
+          ORDERS_TABLE: !Ref OrdersTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProductsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref OrdersTable
         - S3CrudPolicy:
             BucketName: !Ref ProductImagesBucket
       Events:
@@ -666,6 +669,12 @@ Resources:
             RestApiId: !Ref OrderApi
             Path: /products/{id}
             Method: DELETE
+        GenerateUploadUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref OrderApi
+            Path: /products/upload-url
+            Method: POST
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
