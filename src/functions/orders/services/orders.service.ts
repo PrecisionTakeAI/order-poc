@@ -6,17 +6,20 @@ import {
   QueryCommand,
   UpdateCommand,
   TransactWriteCommand,
+  BatchGetCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { OrderEntity, OrderItem, Address, CartEntity, ProductEntity } from '../../../shared/types';
 import { ValidationError, NotFoundError, ConflictError, ErrorDetail } from '../../../shared/utils/error.util';
 import { IdempotencyService } from './idempotency.service';
+import { GetUserOrdersParams, GetUserOrdersResult } from '../types';
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.ORDERS_TABLE || '';
 const CARTS_TABLE = process.env.CARTS_TABLE || '';
 const PRODUCTS_TABLE = process.env.PRODUCTS_TABLE || '';
+const ORDERS_USER_DATE_INDEX = process.env.ORDERS_USER_DATE_INDEX || '';
 
 export interface CreateOrderResult {
   order: OrderEntity;
@@ -398,6 +401,127 @@ export class OrdersService {
     );
 
     return (response.Items as OrderEntity[]) || [];
+  }
+
+  /**
+   * Get user orders with filtering, date range, and pagination support
+   * Uses the userId-orderDate-index GSI for efficient querying
+   */
+  async getUserOrdersWithFilters(params: GetUserOrdersParams): Promise<GetUserOrdersResult> {
+    const { userId, limit = 50, lastKey, status, startDate, endDate } = params;
+
+    // Build KeyConditionExpression dynamically
+    let keyConditionExpression = 'userId = :userId';
+    const expressionAttributeValues: Record<string, any> = {
+      ':userId': userId,
+    };
+
+    // Add date range to KeyConditionExpression if provided
+    if (startDate && endDate) {
+      keyConditionExpression += ' AND orderDate BETWEEN :startDate AND :endDate';
+      expressionAttributeValues[':startDate'] = startDate;
+      expressionAttributeValues[':endDate'] = endDate;
+    } else if (startDate) {
+      keyConditionExpression += ' AND orderDate >= :startDate';
+      expressionAttributeValues[':startDate'] = startDate;
+    } else if (endDate) {
+      keyConditionExpression += ' AND orderDate <= :endDate';
+      expressionAttributeValues[':endDate'] = endDate;
+    }
+
+    // Build FilterExpression for status if provided
+    let filterExpression: string | undefined;
+    const expressionAttributeNames: Record<string, string> = {};
+
+    if (status) {
+      filterExpression = '#status = :status';
+      expressionAttributeNames['#status'] = 'status';
+      expressionAttributeValues[':status'] = status;
+    }
+
+    const queryParams: any = {
+      TableName: TABLE_NAME,
+      IndexName: ORDERS_USER_DATE_INDEX,
+      KeyConditionExpression: keyConditionExpression,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ScanIndexForward: false, // Newest first
+      Limit: limit,
+    };
+
+    if (filterExpression) {
+      queryParams.FilterExpression = filterExpression;
+      queryParams.ExpressionAttributeNames = expressionAttributeNames;
+    }
+
+    if (lastKey) {
+      queryParams.ExclusiveStartKey = lastKey;
+    }
+
+    const response = await docClient.send(new QueryCommand(queryParams));
+
+    return {
+      orders: (response.Items as OrderEntity[]) || [],
+      lastEvaluatedKey: response.LastEvaluatedKey,
+    };
+  }
+
+  /**
+   * Enrich orders with current product images
+   * Batch-fetches product details and adds currentImageUrl to order items
+   */
+  async enrichOrdersWithProductImages(orders: OrderEntity[]): Promise<OrderEntity[]> {
+    if (!orders || orders.length === 0) {
+      return orders;
+    }
+
+    // Extract unique product IDs from all orders
+    const productIds = new Set<string>();
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        productIds.add(item.productId);
+      });
+    });
+
+    if (productIds.size === 0) {
+      return orders;
+    }
+
+    // Batch fetch products (DynamoDB BatchGet limit is 100 items)
+    const productIdArray = Array.from(productIds);
+    const productMap = new Map<string, string | undefined>();
+
+    // Process in batches of 100
+    for (let i = 0; i < productIdArray.length; i += 100) {
+      const batch = productIdArray.slice(i, i + 100);
+
+      const response = await docClient.send(
+        new BatchGetCommand({
+          RequestItems: {
+            [PRODUCTS_TABLE]: {
+              Keys: batch.map((id) => ({
+                PK: `PRODUCT#${id}`,
+                SK: 'DETAILS',
+              })),
+              ProjectionExpression: 'productId, imageUrl',
+            },
+          },
+        })
+      );
+
+      const products = (response.Responses?.[PRODUCTS_TABLE] as ProductEntity[]) || [];
+      products.forEach((product) => {
+        productMap.set(product.productId, product.imageUrl);
+      });
+    }
+
+    // Enrich orders with current image URLs
+    return orders.map((order) => ({
+      ...order,
+      items: order.items.map((item) => ({
+        ...item,
+        currentImageUrl: productMap.get(item.productId),
+      })),
+    }));
   }
 
   async updateOrderStatus(

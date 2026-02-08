@@ -13,6 +13,7 @@ import {
   OrderItemResponse,
 } from './types';
 import { validate as uuidValidate } from 'uuid';
+import { encodePaginationToken, decodePaginationToken } from '../../shared/utils/pagination.util';
 
 const ordersService = new OrdersService();
 
@@ -32,7 +33,7 @@ function isAdmin(event: AuthorizedAPIGatewayProxyEvent): boolean {
   }
 
   if (Array.isArray(groups)) {
-    return groups.includes('admin');
+    return (groups as string[]).includes('admin');
   }
 
   return false;
@@ -102,16 +103,94 @@ async function handleListOrders(
   userId: string,
   event: AuthorizedAPIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
-  const limit = event.queryStringParameters?.limit
-    ? parseInt(event.queryStringParameters.limit, 10)
-    : 50;
+  // Parse and validate query parameters
+  const queryParams = event.queryStringParameters || {};
 
-  const orders = await ordersService.getUserOrders(userId, limit);
+  // Parse limit (1-100, default 50)
+  const DEFAULT_LIMIT = 50;
+  const MAX_LIMIT = 100;
+  const MIN_LIMIT = 1;
+
+  let limit = DEFAULT_LIMIT;
+  if (queryParams.limit) {
+    const parsed = parseInt(queryParams.limit, 10);
+    if (isNaN(parsed) || parsed < MIN_LIMIT || parsed > MAX_LIMIT) {
+      throw new ValidationError(
+        `Invalid limit. Must be between ${MIN_LIMIT} and ${MAX_LIMIT}`
+      );
+    }
+    limit = parsed;
+  }
+
+  // Parse pagination token
+  let lastKey: Record<string, unknown> | undefined;
+  if (queryParams.lastKey) {
+    const decoded = decodePaginationToken(queryParams.lastKey);
+    if (!decoded) {
+      throw new ValidationError('Invalid pagination token');
+    }
+    lastKey = decoded;
+  }
+
+  // Validate status filter
+  const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
+  let status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | undefined;
+  if (queryParams.status) {
+    if (!validStatuses.includes(queryParams.status as any)) {
+      throw new ValidationError(
+        `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      );
+    }
+    status = queryParams.status as 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  }
+
+  // Validate date range
+  let startDate: string | undefined;
+  let endDate: string | undefined;
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+  if (queryParams.startDate) {
+    if (!dateRegex.test(queryParams.startDate)) {
+      throw new ValidationError('Invalid startDate format. Use YYYY-MM-DD');
+    }
+    startDate = queryParams.startDate;
+  }
+
+  if (queryParams.endDate) {
+    if (!dateRegex.test(queryParams.endDate)) {
+      throw new ValidationError('Invalid endDate format. Use YYYY-MM-DD');
+    }
+    endDate = queryParams.endDate;
+  }
+
+  // Validate date range logic
+  if (startDate && endDate && startDate > endDate) {
+    throw new ValidationError('startDate must be before or equal to endDate');
+  }
+
+  // Fetch orders with filters
+  const result = await ordersService.getUserOrdersWithFilters({
+    userId,
+    limit,
+    lastKey,
+    status,
+    startDate,
+    endDate,
+  });
+
+  // Enrich with current product images
+  const enrichedOrders = await ordersService.enrichOrdersWithProductImages(result.orders);
+
+  // Encode pagination token
+  const lastKeyEncoded = result.lastEvaluatedKey
+    ? encodePaginationToken(result.lastEvaluatedKey)
+    : undefined;
 
   const response: OrderListResponse = {
-    orders: orders.map(mapOrderToResponse),
-    count: orders.length,
-    hasMore: orders.length === limit,
+    orders: enrichedOrders.map(mapOrderToResponse),
+    count: enrichedOrders.length,
+    hasMore: !!result.lastEvaluatedKey,
+    lastKey: lastKeyEncoded,
   };
 
   return successResponse(response, 200);
@@ -127,7 +206,20 @@ async function handleGetOrder(
     throw new NotFoundError('Order not found');
   }
 
-  const response: OrderResponse = mapOrderToResponse(order);
+  // CRITICAL: Verify order belongs to the requesting user (prevent cross-user access)
+  if (order.userId !== userId) {
+    return errorResponse(
+      'Forbidden: You do not have permission to view this order',
+      403,
+      'FORBIDDEN'
+    );
+  }
+
+  // Enrich with current product images
+  const enrichedOrders = await ordersService.enrichOrdersWithProductImages([order]);
+  const enrichedOrder = enrichedOrders[0];
+
+  const response: OrderResponse = mapOrderToResponse(enrichedOrder);
 
   return successResponse(response, 200);
 }
@@ -257,6 +349,7 @@ function mapOrderToResponse(order: any): OrderResponse {
       price: item.price,
       quantity: item.quantity,
       subtotal: item.subtotal,
+      currentImageUrl: item.currentImageUrl,
     })),
     totalAmount: order.totalAmount,
     currency: order.currency,

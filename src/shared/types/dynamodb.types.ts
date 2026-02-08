@@ -71,6 +71,7 @@ export interface OrderItem {
   price: number;
   quantity: number;
   subtotal: number;
+  currentImageUrl?: string;
 }
 
 export interface Address {
