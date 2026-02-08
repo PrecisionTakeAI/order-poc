@@ -1,16 +1,8 @@
 import { Address } from '../../shared/types';
 
 export interface CreateOrderRequest {
-  items: OrderItemRequest[];
   shippingAddress: Address;
   paymentMethod: string;
-}
-
-export interface OrderItemRequest {
-  productId: string;
-  productName: string;
-  price: number;
-  quantity: number;
 }
 
 export interface UpdateOrderStatusRequest {

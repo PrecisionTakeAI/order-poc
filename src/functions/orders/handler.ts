@@ -1,9 +1,8 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
-import { v4 as uuidv4 } from 'uuid';
 import { successResponse, errorResponse } from '../../shared/utils/response.util';
-import { ValidationError, NotFoundError } from '../../shared/utils/error.util';
+import { ValidationError, NotFoundError, ConflictError } from '../../shared/utils/error.util';
 import { validateRequestBody } from '../../shared/utils/validation.util';
-import { AuthorizedAPIGatewayProxyEvent, OrderItem } from '../../shared/types';
+import { AuthorizedAPIGatewayProxyEvent } from '../../shared/types';
 import { OrdersService } from './services/orders.service';
 import {
   CreateOrderRequest,
@@ -85,7 +84,7 @@ export const handler = async (
   } catch (error) {
     console.error('Orders Handler - Error:', error);
 
-    if (error instanceof ValidationError || error instanceof NotFoundError) {
+    if (error instanceof ValidationError || error instanceof NotFoundError || error instanceof ConflictError) {
       return errorResponse(error.message, error.statusCode, error.code, error.details);
     }
 
@@ -138,29 +137,15 @@ async function handleCreateOrder(
   const body = JSON.parse(event.body || '{}') as CreateOrderRequest;
 
   validateRequestBody(body, [
-    { field: 'items', required: true, type: 'object' },
     { field: 'shippingAddress', required: true, type: 'object' },
     { field: 'paymentMethod', required: true, type: 'string' },
   ]);
 
-  const { items, shippingAddress, paymentMethod } = body;
+  const { shippingAddress, paymentMethod } = body;
 
-  if (!Array.isArray(items) || items.length === 0) {
-    throw new ValidationError('Items must be a non-empty array');
-  }
-
-  const orderItems: OrderItem[] = items.map((item) => ({
-    itemId: uuidv4(),
-    productId: item.productId,
-    productName: item.productName,
-    price: item.price,
-    quantity: item.quantity,
-    subtotal: item.price * item.quantity,
-  }));
-
-  const order = await ordersService.createOrder(
+  // Create order from cart using DynamoDB transaction
+  const order = await ordersService.createOrderFromCart(
     userId,
-    orderItems,
     shippingAddress,
     paymentMethod
   );
