@@ -735,9 +735,15 @@ Resources:
         Variables:
           ORDERS_TABLE: !Ref OrdersTable
           ORDERS_USER_DATE_INDEX: userId-orderDate-index
+          CARTS_TABLE: !Ref CartsTable
+          PRODUCTS_TABLE: !Ref ProductsTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref OrdersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CartsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProductsTable
       Events:
         CreateOrder:
           Type: Api
