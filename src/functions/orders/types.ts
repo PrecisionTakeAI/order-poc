@@ -17,6 +17,7 @@ export interface OrderItemResponse {
   price: number;
   quantity: number;
   subtotal: number;
+  currentImageUrl?: string;
 }
 
 export interface OrderResponse {
@@ -37,4 +38,19 @@ export interface OrderListResponse {
   orders: OrderResponse[];
   count: number;
   hasMore: boolean;
+  lastKey?: string;
+}
+
+export interface GetUserOrdersParams {
+  userId: string;
+  limit?: number;
+  lastKey?: Record<string, unknown>;
+  status?: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface GetUserOrdersResult {
+  orders: any[];
+  lastEvaluatedKey?: Record<string, unknown>;
 }

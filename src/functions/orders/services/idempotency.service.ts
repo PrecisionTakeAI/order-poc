@@ -2,7 +2,6 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
-  TransactWriteCommandInput,
 } from '@aws-sdk/lib-dynamodb';
 import { OrderEntity } from '../../../shared/types';
 
@@ -72,7 +71,7 @@ export class IdempotencyService {
     userId: string,
     idempotencyKey: string,
     orderId: string
-  ): TransactWriteCommandInput['TransactItems'][0] {
+  ): any {
     const now = new Date().toISOString();
     const ttl = Math.floor(Date.now() / 1000) + IDEMPOTENCY_TTL_SECONDS;
 
