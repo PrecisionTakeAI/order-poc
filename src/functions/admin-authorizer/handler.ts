@@ -4,13 +4,14 @@ import {
   PolicyDocument,
   Statement,
 } from 'aws-lambda';
+import { CognitoJwtVerifier } from 'aws-jwt-verify';
 
-interface DecodedJWT {
-  sub: string;
-  email?: string;
-  'cognito:groups'?: string[] | string;
-  [key: string]: unknown;
-}
+// Create JWT verifier instance (singleton pattern)
+const verifier = CognitoJwtVerifier.create({
+  userPoolId: process.env.COGNITO_USER_POOL_ID || '',
+  tokenUse: 'access',
+  clientId: null, // Accept any client ID
+});
 
 /**
  * Lambda Authorizer for admin-only API endpoints.
@@ -41,15 +42,15 @@ export async function handler(
       return generatePolicy('user', 'Deny', event.methodArn);
     }
 
-    // Decode JWT (no signature validation needed - CognitoAuthorizer already validated)
-    const decoded = decodeJWT(token);
+    // Verify JWT signature, expiration, and issuer using aws-jwt-verify
+    const decoded = await verifier.verify(token);
     if (!decoded) {
-      console.warn('Failed to decode JWT');
+      console.warn('Failed to verify JWT');
       return generatePolicy('user', 'Deny', event.methodArn);
     }
 
     const userId = decoded.sub;
-    const email = decoded.email || 'unknown';
+    const email = typeof decoded.email === 'string' ? decoded.email : 'unknown';
 
     // Extract groups from claims
     const groups = parseGroups(decoded['cognito:groups']);
@@ -79,27 +80,6 @@ export async function handler(
   }
 }
 
-/**
- * Decodes a JWT token (base64 decode without signature validation).
- *
- * @param token - JWT token string
- * @returns Decoded JWT payload or null if invalid
- */
-function decodeJWT(token: string): DecodedJWT | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      return null;
-    }
-
-    const payload = parts[1];
-    const decoded = Buffer.from(payload, 'base64').toString('utf-8');
-    return JSON.parse(decoded) as DecodedJWT;
-  } catch (error) {
-    console.error('JWT decode error', { error });
-    return null;
-  }
-}
 
 /**
  * Parses cognito:groups claim which can be array or string format.
