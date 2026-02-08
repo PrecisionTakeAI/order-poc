@@ -160,11 +160,11 @@ export const OrderDetailPage: React.FC = () => {
                   <div className="col-span-6 flex items-center gap-4">
                     <ProductImageDisplay
                       imageUrl={item.product?.imageUrl}
-                      alt={item.name}
+                      alt={item.name || item.productName || 'Product'}
                       className="w-16 h-16 flex-shrink-0"
                     />
                     <div>
-                      <p className="font-medium text-gray-900">{item.name}</p>
+                      <p className="font-medium text-gray-900">{item.name || item.productName}</p>
                       <p className="text-sm text-gray-600">ID: {item.productId.substring(0, 8)}</p>
                     </div>
                   </div>
@@ -187,11 +187,11 @@ export const OrderDetailPage: React.FC = () => {
                 <div className="flex gap-4 mb-3">
                   <ProductImageDisplay
                     imageUrl={item.product?.imageUrl}
-                    alt={item.name}
+                    alt={item.name || item.productName || 'Product'}
                     className="w-20 h-20 flex-shrink-0"
                   />
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900">{item.name}</p>
+                    <p className="font-medium text-gray-900">{item.name || item.productName}</p>
                     <p className="text-sm text-gray-600">ID: {item.productId.substring(0, 8)}</p>
                   </div>
                 </div>

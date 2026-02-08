@@ -49,6 +49,9 @@ export const AdminOrdersPage: React.FC = () => {
   // Track which order is being updated
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
+  // Track expanded order for detail view
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchOrders();
   }, [statusFilter, startDate, endDate]);
@@ -56,17 +59,43 @@ export const AdminOrdersPage: React.FC = () => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await orderService.getAdminOrders({
-        limit: 100,
-        status: statusFilter === 'all' ? undefined : (statusFilter as OrderStatus),
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-      });
+      let allOrders: AdminOrder[] = [];
+      let lastKey: string | undefined;
 
-      if (response.success && response.data) {
-        setOrders(response.data.orders || []);
-        setStatistics(response.data.statistics);
-      }
+      // Fetch all orders by iterating through pages using lastKey
+      do {
+        const response = await orderService.getAdminOrders({
+          limit: 100,
+          lastKey,
+          status: statusFilter === 'all' ? undefined : (statusFilter as OrderStatus),
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        });
+
+        if (response.success && response.data) {
+          allOrders = [...allOrders, ...response.data.orders];
+          lastKey = response.data.lastKey;
+        } else {
+          break;
+        }
+      } while (lastKey);
+
+      setOrders(allOrders);
+
+      // Calculate statistics from the fetched dataset
+      // This shows statistics for the filtered results (which is acceptable behavior)
+      const calculatedStatistics = {
+        totalOrders: allOrders.length,
+        totalRevenue: allOrders
+          .filter((order) => order.status !== 'cancelled')
+          .reduce((sum, order) => sum + order.totalAmount, 0),
+        ordersByStatus: allOrders.reduce((acc, order) => {
+          acc[order.status] = (acc[order.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+      };
+
+      setStatistics(calculatedStatistics);
     } catch (error) {
       showToast('error', orderService.handleError(error));
     } finally {
@@ -216,7 +245,14 @@ export const AdminOrdersPage: React.FC = () => {
               placeholder="Order ID, email, name..."
               value={searchQuery}
               onChange={(e) => {
-                setSearchQuery(e.target.value);
+                const value = e.target.value;
+                setSearchQuery(value);
+                // When search is entered, reset server-side filters to search all orders
+                if (value.trim()) {
+                  setStatusFilter('all');
+                  setStartDate('');
+                  setEndDate('');
+                }
                 setCurrentPage(1);
               }}
             />
@@ -324,67 +360,215 @@ export const AdminOrdersPage: React.FC = () => {
                   {paginatedOrders.map((order) => {
                     const nextStatuses = getNextStatuses(order.status);
                     const isUpdating = updatingOrderId === order.orderId;
+                    const isExpanded = expandedOrderId === order.orderId;
 
                     return (
-                      <tr key={order.orderId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {order.orderId.substring(0, 8)}...
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {order.customerName || 'N/A'}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {order.customerEmail || 'Unknown'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {formatDate(order.createdAt)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{order.items.length}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {formatCurrency(order.totalAmount, order.currency)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {getStatusBadge(order.status)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {nextStatuses.length > 0 ? (
-                            <select
-                              className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              value=""
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  handleStatusUpdate(order.orderId, e.target.value);
+                      <React.Fragment key={order.orderId}>
+                        <tr className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() =>
+                                  setExpandedOrderId(isExpanded ? null : order.orderId)
                                 }
-                              }}
-                              disabled={isUpdating}
-                            >
-                              <option value="">Update Status</option>
-                              {nextStatuses.map((status) => (
-                                <option key={status} value={status}>
-                                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="text-sm text-gray-400">No actions</span>
-                          )}
-                          {isUpdating && (
-                            <span className="ml-2 inline-block">
-                              <LoadingSpinner size="sm" />
-                            </span>
-                          )}
-                        </td>
-                      </tr>
+                                className="text-gray-500 hover:text-gray-700"
+                                aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                              >
+                                <svg
+                                  className={`w-5 h-5 transform transition-transform ${
+                                    isExpanded ? 'rotate-90' : ''
+                                  }`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 5l7 7-7 7"
+                                  />
+                                </svg>
+                              </button>
+                              <div className="text-sm font-medium text-gray-900">
+                                {order.orderId.substring(0, 8)}...
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {order.customerName || 'N/A'}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {order.customerEmail || 'Unknown'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {formatDate(order.createdAt)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{order.items.length}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatCurrency(order.totalAmount, order.currency)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {getStatusBadge(order.status)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {nextStatuses.length > 0 ? (
+                              <select
+                                className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleStatusUpdate(order.orderId, e.target.value);
+                                  }
+                                }}
+                                disabled={isUpdating}
+                              >
+                                <option value="">Update Status</option>
+                                {nextStatuses.map((status) => (
+                                  <option key={status} value={status}>
+                                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-sm text-gray-400">No actions</span>
+                            )}
+                            {isUpdating && (
+                              <span className="ml-2 inline-block">
+                                <LoadingSpinner size="sm" />
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-4 bg-gray-50">
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                                    Order Details
+                                  </h4>
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <span className="text-gray-600">Order ID:</span>{' '}
+                                      <span className="font-medium text-gray-900">
+                                        {order.orderId}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600">Payment Method:</span>{' '}
+                                      <span className="font-medium text-gray-900">
+                                        {order.paymentMethod}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600">Payment Status:</span>{' '}
+                                      <span className="font-medium text-gray-900">
+                                        {order.paymentStatus}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600">Order Date:</span>{' '}
+                                      <span className="font-medium text-gray-900">
+                                        {formatDate(order.orderDate || order.createdAt)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                                    Order Items
+                                  </h4>
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                      <thead className="bg-gray-100">
+                                        <tr>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                            Product
+                                          </th>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                            Quantity
+                                          </th>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                            Price
+                                          </th>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                            Subtotal
+                                          </th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white divide-y divide-gray-200">
+                                        {order.items.map((item) => (
+                                          <tr key={item.itemId}>
+                                            <td className="px-4 py-2">
+                                              <div className="flex items-center gap-3">
+                                                {item.currentImageUrl && (
+                                                  <img
+                                                    src={item.currentImageUrl}
+                                                    alt={item.productName}
+                                                    className="w-12 h-12 object-cover rounded"
+                                                  />
+                                                )}
+                                                <span className="text-sm text-gray-900">
+                                                  {item.productName}
+                                                </span>
+                                              </div>
+                                            </td>
+                                            <td className="px-4 py-2 text-sm text-gray-900">
+                                              {item.quantity}
+                                            </td>
+                                            <td className="px-4 py-2 text-sm text-gray-900">
+                                              {formatCurrency(item.price, order.currency)}
+                                            </td>
+                                            <td className="px-4 py-2 text-sm font-medium text-gray-900">
+                                              {formatCurrency(item.subtotal, order.currency)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                                    Shipping Address
+                                  </h4>
+                                  <div className="text-sm text-gray-700">
+                                    {order.shippingAddress && (
+                                      <>
+                                        <div>{order.shippingAddress.fullName}</div>
+                                        <div>{order.shippingAddress.addressLine1 || order.shippingAddress.street}</div>
+                                        {order.shippingAddress.addressLine2 && (
+                                          <div>{order.shippingAddress.addressLine2}</div>
+                                        )}
+                                        <div>
+                                          {order.shippingAddress.city},{' '}
+                                          {order.shippingAddress.state}{' '}
+                                          {order.shippingAddress.postalCode}
+                                        </div>
+                                        <div>{order.shippingAddress.country}</div>
+                                        {(order.shippingAddress.phone || order.shippingAddress.phoneNumber) && (
+                                          <div>Phone: {order.shippingAddress.phone || order.shippingAddress.phoneNumber}</div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

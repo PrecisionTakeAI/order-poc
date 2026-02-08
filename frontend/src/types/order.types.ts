@@ -3,23 +3,28 @@ import type { Product } from './product.types';
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 export interface OrderItem {
+  itemId?: string;
   productId: string;
-  name: string;
+  name?: string; // For backward compatibility
+  productName?: string; // From API response
   quantity: number;
   price: number;
   subtotal: number;
+  currentImageUrl?: string;
   product?: Product;
 }
 
 export interface ShippingAddress {
   fullName: string;
-  addressLine1: string;
+  addressLine1?: string;
+  street?: string; // Backend uses 'street' not 'addressLine1'
   addressLine2?: string;
   city: string;
   state: string;
   postalCode: string;
   country: string;
-  phoneNumber: string;
+  phoneNumber?: string;
+  phone?: string; // Allow both field names
 }
 
 export interface ShippingFormData {

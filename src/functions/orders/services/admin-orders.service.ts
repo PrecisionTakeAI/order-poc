@@ -96,11 +96,11 @@ export class AdminOrdersService {
 
     const orders = (response.Items as OrderEntity[]) || [];
 
-    // Sort by orderDate descending (newest first)
+    // Sort by orderDate descending (newest first) - consistent with filtering
     orders.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return dateB - dateA;
+      const dateA = a.orderDate || a.createdAt;
+      const dateB = b.orderDate || b.createdAt;
+      return dateB.localeCompare(dateA);
     });
 
     return {
@@ -136,6 +136,7 @@ export class AdminOrdersService {
   /**
    * Update order status with state machine validation
    * Admin can update to any valid next state
+   * Uses ConditionExpression to prevent TOCTOU race conditions
    */
   async updateOrderStatusAdmin(
     orderId: string,
@@ -151,30 +152,41 @@ export class AdminOrdersService {
     // Validate status transition
     this.validateStatusTransition(order.status, newStatus);
 
-    // Update the order status
+    // Update the order status with atomic check-and-update
     const now = new Date().toISOString();
 
-    const response = await docClient.send(
-      new UpdateCommand({
-        TableName: ORDERS_TABLE,
-        Key: {
-          PK: order.PK,
-          SK: order.SK,
-        },
-        UpdateExpression: 'SET #status = :status, #updatedAt = :updatedAt',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-          '#updatedAt': 'updatedAt',
-        },
-        ExpressionAttributeValues: {
-          ':status': newStatus,
-          ':updatedAt': now,
-        },
-        ReturnValues: 'ALL_NEW',
-      })
-    );
+    try {
+      const response = await docClient.send(
+        new UpdateCommand({
+          TableName: ORDERS_TABLE,
+          Key: {
+            PK: order.PK,
+            SK: order.SK,
+          },
+          UpdateExpression: 'SET #status = :status, #updatedAt = :updatedAt',
+          ConditionExpression: '#status = :currentStatus',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+            '#updatedAt': 'updatedAt',
+          },
+          ExpressionAttributeValues: {
+            ':status': newStatus,
+            ':currentStatus': order.status,
+            ':updatedAt': now,
+          },
+          ReturnValues: 'ALL_NEW',
+        })
+      );
 
-    return response.Attributes as OrderEntity;
+      return response.Attributes as OrderEntity;
+    } catch (error: any) {
+      if (error.name === 'ConditionalCheckFailedException') {
+        throw new ValidationError(
+          'Order status was modified by another user. Please refresh and try again.'
+        );
+      }
+      throw error;
+    }
   }
 
   /**
