@@ -38,6 +38,12 @@ export class IdempotencyService {
       return null;
     }
 
+    // Verify that the idempotency key belongs to the requesting user
+    if (response.Item.userId !== userId) {
+      console.warn(`Idempotency key ${idempotencyKey} belongs to different user. Access denied.`);
+      return null;
+    }
+
     // Extract the actual order ID from the idempotency record
     const orderId = response.Item.orderId as string;
 

@@ -14,8 +14,8 @@ export interface ValidationErrorDetail {
 export function validateAddress(address: Address): ValidationErrorDetail[] {
   const errors: ValidationErrorDetail[] = [];
 
-  // Full Name: 2-100 chars, letters/spaces/hyphens
-  const fullNameRegex = /^[a-zA-Z\s\-]{2,100}$/;
+  // Full Name: 2-100 chars, letters/spaces/hyphens/apostrophes/periods
+  const fullNameRegex = /^[a-zA-Z\s'.,-]{2,100}$/;
   if (!address.fullName || address.fullName.trim().length === 0) {
     errors.push({
       field: 'shippingAddress.fullName',
@@ -38,14 +38,14 @@ export function validateAddress(address: Address): ValidationErrorDetail[] {
     } else {
       errors.push({
         field: 'shippingAddress.fullName',
-        message: 'Full name can only contain letters, spaces, and hyphens',
+        message: 'Full name can only contain letters, spaces, hyphens, apostrophes, and periods',
         code: 'INVALID_FORMAT',
       });
     }
   }
 
   // Street: 5-200 chars, alphanumeric + common punctuation
-  const streetRegex = /^[a-zA-Z0-9\s,.\-#]{5,200}$/;
+  const streetRegex = /^[a-zA-Z0-9\s,.#-]{5,200}$/;
   if (!address.street || address.street.trim().length === 0) {
     errors.push({
       field: 'shippingAddress.street',
@@ -75,7 +75,7 @@ export function validateAddress(address: Address): ValidationErrorDetail[] {
   }
 
   // City: 2-100 chars, letters/spaces/hyphens
-  const cityRegex = /^[a-zA-Z\s\-]{2,100}$/;
+  const cityRegex = /^[a-zA-Z\s-]{2,100}$/;
   if (!address.city || address.city.trim().length === 0) {
     errors.push({
       field: 'shippingAddress.city',
@@ -105,7 +105,7 @@ export function validateAddress(address: Address): ValidationErrorDetail[] {
   }
 
   // State: 2-50 chars
-  const stateRegex = /^[a-zA-Z\s\-]{2,50}$/;
+  const stateRegex = /^[a-zA-Z\s-]{2,50}$/;
   if (!address.state || address.state.trim().length === 0) {
     errors.push({
       field: 'shippingAddress.state',
@@ -135,7 +135,7 @@ export function validateAddress(address: Address): ValidationErrorDetail[] {
   }
 
   // Postal Code: 3-10 chars, alphanumeric
-  const postalCodeRegex = /^[a-zA-Z0-9\s\-]{3,10}$/;
+  const postalCodeRegex = /^[a-zA-Z0-9\s-]{3,10}$/;
   if (!address.postalCode || address.postalCode.trim().length === 0) {
     errors.push({
       field: 'shippingAddress.postalCode',
