@@ -1,6 +1,6 @@
 import type { Product } from './product.types';
 
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 export interface OrderItem {
   productId: string;
@@ -66,8 +66,12 @@ export interface UpdateOrderStatusRequest {
 
 export interface OrderListResponse {
   orders: Order[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  count: number;
+  hasMore: boolean;
+  lastKey?: string;
+  // Legacy fields for backward compatibility
+  total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
 }
