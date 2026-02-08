@@ -251,6 +251,9 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
       StreamSpecification:

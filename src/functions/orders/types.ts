@@ -3,6 +3,7 @@ import { Address } from '../../shared/types';
 export interface CreateOrderRequest {
   shippingAddress: Address;
   paymentMethod: string;
+  idempotencyKey?: string;
 }
 
 export interface UpdateOrderStatusRequest {
